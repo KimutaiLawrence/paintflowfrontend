@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@theme {
+  --font-family-sans: var(--font-geist-sans);
+  --font-family-mono: var(--font-geist-mono);
+
+  /* PaintFlow Color Scheme */
+  --color-background: #ffffff;
+  --color-foreground: #374151;
+  --color-card: #f0fdf4;
+  --color-card-foreground: #374151;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #374151;
+  --color-primary: #15803d;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #84cc16;
+  --color-secondary-foreground: #374151;
+  --color-muted: #f0fdf4;
+  --color-muted-foreground: #6b7280;
+  --color-accent: #84cc16;
+  --color-accent-foreground: #374151;
+  --color-destructive: #dc2626;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #d1d5db;
+  --color-input: #f9fafb;
+  --color-ring: #15803d;
+  --color-chart-1: #15803d;
+  --color-chart-2: #84cc16;
+  --color-chart-3: #dc2626;
+  --color-chart-4: #0891b2;
+  --color-chart-5: #f59e0b;
+  --radius: 0.5rem;
+
+  /* Sidebar colors */
+  --color-sidebar: #f0fdf4;
+  --color-sidebar-foreground: #374151;
+  --color-sidebar-primary: #15803d;
+  --color-sidebar-primary-foreground: #ffffff;
+  --color-sidebar-accent: #84cc16;
+  --color-sidebar-accent-foreground: #374151;
+  --color-sidebar-border: #d1d5db;
+  --color-sidebar-ring: #15803d;
+}
+
+@theme dark {
+  /* Dark mode PaintFlow colors */
+  --color-background: #111827;
+  --color-foreground: #f9fafb;
+  --color-card: #1f2937;
+  --color-card-foreground: #f9fafb;
+  --color-popover: #1f2937;
+  --color-popover-foreground: #f9fafb;
+  --color-primary: #22c55e;
+  --color-primary-foreground: #111827;
+  --color-secondary: #a3e635;
+  --color-secondary-foreground: #111827;
+  --color-muted: #374151;
+  --color-muted-foreground: #9ca3af;
+  --color-accent: #a3e635;
+  --color-accent-foreground: #111827;
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #f9fafb;
+  --color-border: #374151;
+  --color-input: #374151;
+  --color-ring: #22c55e;
+  --color-chart-1: #22c55e;
+  --color-chart-2: #a3e635;
+  --color-chart-3: #ef4444;
+  --color-chart-4: #06b6d4;
+  --color-chart-5: #f59e0b;
+
+  /* Sidebar dark mode colors */
+  --color-sidebar: #1f2937;
+  --color-sidebar-foreground: #f9fafb;
+  --color-sidebar-primary: #22c55e;
+  --color-sidebar-primary-foreground: #111827;
+  --color-sidebar-accent: #a3e635;
+  --color-sidebar-accent-foreground: #111827;
+  --color-sidebar-border: #374151;
+  --color-sidebar-ring: #22c55e;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply text-foreground font-semibold;
+  }
+}
+
+/* Custom scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgb(var(--color-muted));
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-border));
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--color-muted-foreground));
+}
