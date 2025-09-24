@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useMutation } from "@tanstack/react-query"
+import { QueryClient, useMutation } from "@tanstack/react-query"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,6 +14,8 @@ import { Loader2, Paintbrush } from "lucide-react"
 import { loginSchema, type LoginFormData } from "@/lib/validators"
 import { useAuth } from "@/hooks/use-auth"
 import api from "@/lib/api"
+import { Separator } from "@/components/ui/separator"
+import { FaGoogle } from "react-icons/fa"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -95,6 +97,19 @@ export default function LoginPage() {
               Sign In
             </Button>
           </form>
+
+          <Separator className="my-6" />
+
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => {
+              window.location.href = `https://paintflowbackendlive.onrender.com/api/auth/google/login`
+            }}
+          >
+            <FaGoogle className="mr-2 h-4 w-4" />
+            Sign in with Google
+          </Button>
 
           <div className="mt-6 p-4 bg-muted rounded-lg">
             <p className="text-sm font-medium mb-2">Test Accounts:</p>

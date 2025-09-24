@@ -80,6 +80,12 @@ export default function DashboardPage() {
     )
   }
 
+  // Ensure jobs is an array before proceeding
+  if (!Array.isArray(jobs)) {
+    // You might want to render a loading state or an error message here
+    return <div>Loading jobs or error...</div>
+  }
+
   const totalJobs = metricsResponse?.total_jobs || jobsResponse?.total || jobs.length
   const activeJobs =
     metricsResponse?.active_jobs || jobs.filter((job) => job.areas?.some((area) => area.status !== "done")).length

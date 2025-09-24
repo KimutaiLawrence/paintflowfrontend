@@ -1,12 +1,12 @@
 "use client"
 
-import React, { useState } from "react"
-import { useRouter } from "next/navigation"
-import { useForm, useFieldArray } from "react-hook-form"
+import React, { useEffect } from "react"
+import { useParams, useRouter } from "next/navigation"
+import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { useMutation } from "@tanstack/react-query"
-import { jobsApi } from "@/lib/api"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { jobsApi, JobDetail } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -26,26 +26,30 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import { Loader2, PlusCircle, Trash2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
-
-const areaSchema = z.object({
-  name: z.string().min(1, "Area name is required"),
-})
 
 const formSchema = z.object({
   title: z.string().min(1, "Job title is required"),
   address: z.string().min(1, "Address is required"),
   priority: z.string().min(1, "Priority is required"),
   description: z.string().optional(),
-  areas: z.array(areaSchema).min(1, "At least one job area is required"),
 })
 
-export default function CreateJobPage() {
+export default function EditJobPage() {
   const router = useRouter()
+  const params = useParams()
+  const jobId = params.jobId as string
   const { toast } = useToast()
+  const queryClient = useQueryClient()
+
+  const { data: job, isLoading: isJobLoading } = useQuery<JobDetail>({
+    queryKey: ["job", jobId],
+    queryFn: () => jobsApi.getJob(jobId),
+    enabled: !!jobId,
+  })
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -53,37 +57,52 @@ export default function CreateJobPage() {
       address: "",
       priority: "P3",
       description: "",
-      areas: [{ name: "" }],
     },
   })
+  
+  useEffect(() => {
+    if (job) {
+      form.reset({
+        title: job.title,
+        address: job.address,
+        priority: job.priority,
+        description: job.description || "",
+      })
+    }
+  }, [job, form])
 
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: "areas",
-  })
-
-  const createJobMutation = useMutation({
-    mutationFn: jobsApi.createJob,
+  const updateJobMutation = useMutation({
+    mutationFn: (values: z.infer<typeof formSchema>) => jobsApi.updateJob(jobId, values),
     onSuccess: () => {
-      toast.success("Job created successfully!")
-      router.push("/jobs")
+      toast.success("Job updated successfully!")
+      queryClient.invalidateQueries({ queryKey: ["job", jobId] })
+      queryClient.invalidateQueries({ queryKey: ["jobs"] })
+      router.push(`/jobs/${jobId}`)
     },
     onError: (error) => {
-      toast.error("Failed to create job", error.message)
+      toast.error("Failed to update job", error.message)
     },
   })
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    createJobMutation.mutate(values)
+    updateJobMutation.mutate(values)
+  }
+  
+  if (isJobLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-2xl mx-auto">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
           <Card>
             <CardHeader>
-              <CardTitle>Create New Job</CardTitle>
+              <CardTitle>Edit Job Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <FormField
@@ -152,59 +171,14 @@ export default function CreateJobPage() {
               />
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Job Areas</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {fields.map((field, index) => (
-                <div key={field.id} className="flex items-end gap-4">
-                  <FormField
-                    control={form.control}
-                    name={`areas.${index}.name`}
-                    render={({ field }) => (
-                      <FormItem className="flex-1">
-                        <FormLabel>Area Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., Living Room & Kitchen" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon"
-                    onClick={() => remove(index)}
-                    disabled={fields.length <= 1}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-              <Separator />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mt-2"
-                onClick={() => append({ name: "" })}
-              >
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add Area
-              </Button>
-            </CardContent>
-          </Card>
-
+          
           <div className="flex justify-end gap-2">
             <Button variant="outline" asChild>
-              <Link href="/jobs">Cancel</Link>
+              <Link href={`/jobs/${jobId}`}>Cancel</Link>
             </Button>
-            <Button type="submit" disabled={createJobMutation.isPending}>
-              {createJobMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create Job
+            <Button type="submit" disabled={updateJobMutation.isPending}>
+              {updateJobMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Changes
             </Button>
           </div>
         </form>

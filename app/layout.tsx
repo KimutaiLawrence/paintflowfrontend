@@ -3,13 +3,11 @@ import type { Metadata } from "next"
 import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
 import "./globals.css"
-import { QueryProvider } from "@/components/providers/query-provider"
-import { Toaster } from "@/components/ui/toaster"
+import { Providers } from "@/components/providers/providers"
 
 export const metadata: Metadata = {
   title: "PaintFlow - Digital Operations Platform",
   description: "Digital operations and job management platform for AS United PTE LTD",
-    generator: 'v0.app'
 }
 
 export default function RootLayout({
@@ -20,10 +18,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body className="antialiased bg-background text-foreground">
-        <QueryProvider>
-          {children}
-          <Toaster />
-        </QueryProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   )

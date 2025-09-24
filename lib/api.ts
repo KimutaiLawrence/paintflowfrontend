@@ -64,7 +64,7 @@ export const dashboardApi = {
 }
 
 export const jobsApi = {
-  getJobs: (params?: { page?: number; per_page?: number }) => api.get("/jobs/", { params }),
+  getJobs: (params?: { page?: number; per_page?: number }) => api.get("/jobs/", { params }).then(res => res.data),
 
   getJob: (jobId: string) => api.get(`/jobs/${jobId}`),
 
@@ -75,12 +75,20 @@ export const jobsApi = {
     areas: { name: string }[]
   }) => api.post("/jobs/", jobData),
 
+  updateJob: (jobId: string, jobData: Partial<JobDetail>) => api.put(`/jobs/${jobId}`, jobData),
+
+  deleteJob: (jobId: string) => api.delete(`/jobs/${jobId}`),
+
   createJobArea: (jobId: string, areaData: { name: string }) => api.post(`/jobs/${jobId}/areas`, areaData),
 }
 
 export const areasApi = {
   updateAreaStatus: (areaId: string, statusData: { status: string; notes?: string }) =>
     api.put(`/areas/${areaId}/status`, statusData),
+
+  updateArea: (areaId: string, areaData: Partial<JobArea>) => api.put(`/areas/${areaId}`, areaData),
+
+  deleteArea: (areaId: string) => api.delete(`/areas/${areaId}`),
 
   getAreaHistory: (areaId: string) => api.get(`/areas/${areaId}/history`),
 }
@@ -103,6 +111,8 @@ export const workersApi = {
 
   assignWorker: (assignmentData: { worker_id: string; job_area_id: string }) =>
     api.post("/workers/assign", assignmentData),
+    
+  unassignWorker: (assignmentId: string) => api.delete(`/workers/assignments/${assignmentId}`),
 
   getAssignments: () => api.get("/workers/assignments"),
 }
@@ -125,6 +135,46 @@ export const reportsApi = {
   getDailyReport: () => api.get("/reports/daily"),
 
   exportJobReport: (jobId: string) => api.get(`/reports/job/${jobId}/export`),
+}
+
+export const usersApi = {
+  getUsers: () => api.get("/users/").then(res => res.data),
+  getUser: (userId: string) => api.get(`/users/${userId}`),
+  createUser: (userData: any) => api.post("/users/", userData),
+  updateUser: (userId: string, userData: any) => api.put(`/users/${userId}`, userData),
+  deleteUser: (userId: string) => api.delete(`/users/${userId}`),
+}
+
+export const managementCompaniesApi = {
+  getCompanies: () => api.get("/management-companies/"),
+  getCompany: (companyId: string) => api.get(`/management-companies/${companyId}`),
+  createCompany: (companyData: any) => api.post("/management-companies/", companyData),
+  updateCompany: (companyId: string, companyData: any) => api.put(`/management-companies/${companyId}`, companyData),
+  deleteCompany: (companyId: string) => api.delete(`/management-companies/${companyId}`),
+}
+
+export const formTemplatesApi = {
+  getTemplates: () => api.get("/forms/templates"),
+  getTemplate: (templateId: string) => api.get(`/forms/templates/${templateId}`),
+  createTemplate: (templateData: any) => api.post("/forms/templates", templateData),
+  updateTemplate: (templateId: string, templateData: any) => api.put(`/forms/templates/${templateId}`, templateData),
+  deleteTemplate: (templateId: string) => api.delete(`/forms/templates/${templateId}`),
+}
+
+export const companyDocumentsApi = {
+  getDocuments: () => api.get("/company-documents/").then(res => res.data),
+  uploadDocument: (file: File, name: string, description: string, category: string) => {
+    const formData = new FormData()
+    formData.append("file", file)
+    formData.append("name", name)
+    formData.append("description", description)
+    formData.append("category", category)
+    
+    return api.post("/company-documents/upload", formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  deleteDocument: (docId: string) => api.delete(`/company-documents/${docId}`),
 }
 
 export const syncApi = {

@@ -1,0 +1,50 @@
+"use client"
+
+import { useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useAuth } from '@/hooks/use-auth'
+import { Loader2 } from 'lucide-react'
+import api from '@/lib/api'
+
+export default function AuthCallbackPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { login } = useAuth()
+
+  useEffect(() => {
+    const token = searchParams.get('token')
+    
+    const authenticate = async (authToken: string) => {
+      try {
+        // Use the token to fetch user data
+        const response = await api.get('/auth/me', {
+          headers: { Authorization: `Bearer ${authToken}` },
+        })
+        const user = response.data
+        
+        // Now login with both token and user object
+        login(authToken, user)
+        router.push('/dashboard')
+        
+      } catch (error) {
+        console.error("Failed to fetch user profile:", error)
+        router.push('/login?error=auth_failed')
+      }
+    }
+
+    if (token) {
+      authenticate(token)
+    } else {
+      router.push('/login?error=auth_failed')
+    }
+  }, [searchParams, login, router])
+
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="flex items-center space-x-2">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <p className="text-lg">Authenticating, please wait...</p>
+      </div>
+    </div>
+  )
+}

@@ -1,178 +1,172 @@
 "use client"
 
-import { useState } from "react"
 import Link from "next/link"
+import {
+  Home,
+  Briefcase,
+  ClipboardList,
+  FileText,
+  Users,
+  Building,
+  Settings,
+  Package2,
+  Menu,
+} from "lucide-react"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Button } from "@/components/ui/button"
+import { useAuth } from "@/hooks/use-auth"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import {
-  LayoutDashboard,
-  Briefcase,
-  Users,
-  FileText,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
-  Paintbrush,
-  Menu,
-  Shield,
-} from "lucide-react"
-import { useAuth } from "@/hooks/use-auth"
+import React from "react"
 
-const navigation = [
-  {
-    name: "Dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-    roles: ["admin", "supervisor", "worker"],
-  },
-  {
-    name: "Jobs",
-    href: "/jobs",
-    icon: Briefcase,
-    roles: ["admin", "supervisor", "worker"],
-  },
-  {
-    name: "Safety Forms",
-    href: "/forms",
-    icon: Shield,
-    roles: ["admin", "supervisor", "worker"],
-  },
-  {
-    name: "Workers",
-    href: "/workers",
-    icon: Users,
-    roles: ["admin", "supervisor"],
-  },
-  {
-    name: "Reports",
-    href: "/reports",
-    icon: FileText,
-    roles: ["admin", "supervisor"],
-  },
-  {
-    name: "Settings",
-    href: "/settings",
-    icon: Settings,
-    roles: ["admin"],
-  },
-]
-
-function NavigationItems({ collapsed = false, onItemClick }: { collapsed?: boolean; onItemClick?: () => void }) {
+const NavLink = ({
+  href,
+  icon: Icon,
+  label,
+  isMobile = false,
+  isCollapsed,
+}: {
+  href: string
+  icon: React.ElementType
+  label: string
+  isMobile?: boolean
+  isCollapsed: boolean
+}) => {
   const pathname = usePathname()
-  const { hasRole } = useAuth()
+  const isActive = pathname === href
 
-  const filteredNavigation = navigation.filter((item) => item.roles.some((role) => hasRole(role)))
+  const linkClasses = cn(
+    "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
+    isActive && "bg-muted text-primary"
+  )
 
+  if (isMobile) {
+    return (
+      <Link href={href} className={linkClasses.replace("gap-3", "gap-4")}>
+        <Icon className="h-5 w-5" />
+        {label}
+      </Link>
+    )
+  }
+
+  // For desktop
   return (
-    <ul className="space-y-1">
-      {filteredNavigation.map((item) => {
-        const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
-        return (
-          <li key={item.name}>
-            <Link href={item.href} onClick={onItemClick}>
-              <Button
-                variant={isActive ? "secondary" : "ghost"}
-                className={cn(
-                  "w-full justify-start h-12 text-left", // Increased height for better touch targets
-                  collapsed ? "px-2" : "px-3",
-                  isActive && "bg-sidebar-accent text-sidebar-accent-foreground",
-                )}
-              >
-                <item.icon className="h-5 w-5 flex-shrink-0" /> {/* Increased icon size for mobile */}
-                {!collapsed && <span className="ml-3 text-sm font-medium">{item.name}</span>}
-              </Button>
-            </Link>
-          </li>
-        )
-      })}
-    </ul>
+    <Tooltip delayDuration={0}>
+      <TooltipTrigger asChild>
+        <Link href={href} className={linkClasses}>
+          <Icon className="h-5 w-5" />
+          <span className={isCollapsed ? "sr-only" : ""}>{label}</span>
+        </Link>
+      </TooltipTrigger>
+      {isCollapsed && <TooltipContent side="right">{label}</TooltipContent>}
+    </Tooltip>
   )
 }
 
-function DesktopSidebar() {
-  const [collapsed, setCollapsed] = useState(false)
+const NavSection = ({ title, isCollapsed }: { title: string; isCollapsed: boolean }) => (
+  <h2
+    className={cn(
+      "px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80",
+      isCollapsed && "sr-only"
+    )}
+  >
+    {title}
+  </h2>
+)
 
-  return (
-    <div
-      className={cn(
-        "hidden md:flex flex-col h-full bg-sidebar border-r border-sidebar-border transition-all duration-300",
-        collapsed ? "w-16" : "w-64",
+export function Sidebar({ isCollapsed }: { isCollapsed: boolean }) {
+  const { user } = useAuth()
+
+  const desktopNavLinks = (
+    <>
+      <NavLink href="/dashboard" icon={Home} label="Dashboard" isCollapsed={isCollapsed} />
+      <NavLink href="/jobs" icon={Briefcase} label="Jobs" isCollapsed={isCollapsed} />
+      <NavLink href="/forms" icon={ClipboardList} label="Safety Forms" isCollapsed={isCollapsed} />
+      <NavLink href="/reports" icon={FileText} label="Reports" isCollapsed={isCollapsed} />
+      <NavLink href="/company-documents" icon={FileText} label="Documents" isCollapsed={isCollapsed} />
+      {user?.role === "admin" && (
+        <>
+          <NavSection title="Admin" isCollapsed={isCollapsed} />
+          <NavLink href="/users" icon={Users} label="Users" isCollapsed={isCollapsed} />
+          <NavLink href="/management-companies" icon={Building} label="Clients" isCollapsed={isCollapsed} />
+          <NavLink href="/form-templates" icon={ClipboardList} label="Form Templates" isCollapsed={isCollapsed} />
+        </>
       )}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between p-4">
-        {!collapsed && (
-          <div className="flex items-center space-x-2">
-            <div className="p-2 bg-sidebar-primary rounded-lg">
-              <Paintbrush className="h-5 w-5 text-sidebar-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="font-bold text-sidebar-foreground">PaintFlow</h1>
-              <p className="text-xs text-sidebar-foreground/70">AS United PTE LTD</p>
-            </div>
-          </div>
-        )}
-        <Button variant="ghost" size="sm" onClick={() => setCollapsed(!collapsed)} className="h-8 w-8 p-0">
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </Button>
-      </div>
-
-      <Separator />
-
-      {/* Navigation */}
-      <nav className="flex-1 p-2">
-        <NavigationItems collapsed={collapsed} />
-      </nav>
-    </div>
+    </>
   )
-}
 
-function MobileSidebar() {
-  const [open, setOpen] = useState(false)
-
-  return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button variant="ghost" size="sm" className="md:hidden h-10 w-10 p-0">
-          {" "}
-          {/* Larger touch target for mobile */}
-          <Menu className="h-5 w-5" />
-          <span className="sr-only">Open navigation menu</span>
-        </Button>
-      </SheetTrigger>
-      <SheetContent side="left" className="w-64 p-0">
-        <div className="flex flex-col h-full bg-sidebar">
-          {/* Header */}
-          <div className="flex items-center space-x-2 p-4">
-            <div className="p-2 bg-sidebar-primary rounded-lg">
-              <Paintbrush className="h-5 w-5 text-sidebar-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="font-bold text-sidebar-foreground">PaintFlow</h1>
-              <p className="text-xs text-sidebar-foreground/70">AS United PTE LTD</p>
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Navigation */}
-          <nav className="flex-1 p-2">
-            <NavigationItems onItemClick={() => setOpen(false)} />
-          </nav>
-        </div>
-      </SheetContent>
-    </Sheet>
+  const mobileNavLinks = (
+    <>
+      <NavLink href="/dashboard" icon={Home} label="Dashboard" isMobile />
+      <NavLink href="/jobs" icon={Briefcase} label="Jobs" isMobile />
+      <NavLink href="/forms" icon={ClipboardList} label="Safety Forms" isMobile />
+      <NavLink href="/reports" icon={FileText} label="Reports" isMobile />
+      <NavLink href="/company-documents" icon={FileText} label="Documents" isMobile />
+      {user?.role === "admin" && (
+        <>
+          <NavLink href="/users" icon={Users} label="Users" isMobile />
+          <NavLink href="/management-companies" icon={Building} label="Clients" isMobile />
+          <NavLink href="/form-templates" icon={ClipboardList} label="Form Templates" isMobile />
+        </>
+      )}
+    </>
   )
-}
 
-export function Sidebar() {
   return (
     <>
-      <DesktopSidebar />
-      <MobileSidebar />
+      {/* Desktop Sidebar */}
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-10 hidden flex-col border-r bg-background sm:flex transition-all duration-300",
+          isCollapsed ? "w-14" : "w-64"
+        )}
+      >
+        <div className={cn("flex h-14 items-center border-b", isCollapsed ? "px-2 justify-center" : "px-4")}>
+          <Link
+            href="/"
+            className="flex items-center gap-2 font-semibold"
+          >
+            <Package2 className="h-6 w-6" />
+            <span className={cn(isCollapsed && "sr-only")}>PaintFlow</span>
+          </Link>
+        </div>
+
+        <nav className={cn("flex-grow space-y-1", isCollapsed ? "px-2 py-4" : "px-4 py-4")}>
+          <TooltipProvider>{desktopNavLinks}</TooltipProvider>
+        </nav>
+
+        <nav className={cn("mt-auto border-t", isCollapsed ? "px-2 py-4" : "px-4 py-4")}>
+          <TooltipProvider>
+            <NavLink href="/settings" icon={Settings} label="Settings" isCollapsed={isCollapsed} />
+          </TooltipProvider>
+        </nav>
+      </aside>
+
+      {/* Mobile Header & Sidebar */}
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:hidden">
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button size="icon" variant="outline" className="sm:hidden">
+              <Menu className="h-5 w-5" />
+              <span className="sr-only">Toggle Menu</span>
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="sm:max-w-xs">
+            <nav className="grid gap-6 text-lg font-medium">
+              <Link
+                href="#"
+                className="group flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full bg-primary text-lg font-semibold text-primary-foreground md:text-base"
+              >
+                <Package2 className="h-5 w-5 transition-all group-hover:scale-110" />
+                <span className="sr-only">PaintFlow</span>
+              </Link>
+              {mobileNavLinks}
+              <NavLink href="/settings" icon={Settings} label="Settings" isMobile />
+            </nav>
+          </SheetContent>
+        </Sheet>
+      </header>
     </>
   )
 }
