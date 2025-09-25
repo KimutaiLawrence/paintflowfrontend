@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { User, Mail, Phone, Calendar, Briefcase, Award, Clock, CheckCircle, Upload, Edit } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
-import { api } from "@/lib/api"
+import { authApi } from "@/lib/api"
 
 export const dynamic = 'force-dynamic'
 
@@ -24,7 +24,7 @@ export default function ProfilePage() {
 
   const { data: userProfile, isLoading } = useQuery({
     queryKey: ["user-profile"],
-    queryFn: api.auth.getUserInfo,
+    queryFn: authApi.getCurrentUser,
   })
 
   const { data: userStats } = useQuery({
@@ -32,23 +32,25 @@ export default function ProfilePage() {
     queryFn: () => api.dashboard.getMetrics(),
   })
 
-  const updateProfileMutation = useMutation({
-    mutationFn: api.auth.updateProfile,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user-profile"] })
-      setIsEditing(false)
-    },
-  })
+  // const updateProfileMutation = useMutation({
+  //   mutationFn: api.auth.updateProfile,
+  //   onSuccess: () => {
+  //     queryClient.invalidateQueries({ queryKey: ["user-profile"] })
+  //     setIsEditing(false)
+  //   },
+  // })
 
   const handleProfileUpdate = (formData: FormData) => {
-    const profileData = {
-      first_name: formData.get("first_name") as string,
-      last_name: formData.get("last_name") as string,
-      email: formData.get("email") as string,
-      phone: formData.get("phone") as string,
-      bio: formData.get("bio") as string,
-    }
-    updateProfileMutation.mutate(profileData)
+    // const profileData = {
+    //   first_name: formData.get("first_name") as string,
+    //   last_name: formData.get("last_name") as string,
+    //   email: formData.get("email") as string,
+    //   phone: formData.get("phone") as string,
+    //   bio: formData.get("bio") as string,
+    // }
+    // updateProfileMutation.mutate(profileData)
+    console.log("Profile update functionality to be implemented.")
+    setIsEditing(false)
   }
 
   const getRoleBadgeColor = (role: string) => {
@@ -227,8 +229,9 @@ export default function ProfilePage() {
                         />
                       </div>
                       <div className="flex gap-2">
-                        <Button type="submit" disabled={updateProfileMutation.isPending}>
-                          {updateProfileMutation.isPending ? "Saving..." : "Save Changes"}
+                        <Button type="submit" disabled={true}>
+                          {/* {updateProfileMutation.isPending ? "Saving..." : "Save Changes"} */}
+                          Save Changes
                         </Button>
                         <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
                           Cancel
