@@ -1,3 +1,4 @@
+// This comment is added to force a Git commit.
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
