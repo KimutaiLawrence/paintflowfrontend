@@ -15,6 +15,8 @@ import { User, Mail, Phone, Calendar, Briefcase, Award, Clock, CheckCircle, Uplo
 import { useAuth } from "@/hooks/use-auth"
 import { api } from "@/lib/api"
 
+export const dynamic = 'force-dynamic'
+
 export default function ProfilePage() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
