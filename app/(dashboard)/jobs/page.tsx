@@ -19,7 +19,7 @@ export default function JobsPage() {
   const [perPage, setPerPage] = useState(10)
   const [search, setSearch] = useState("")
   const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [showAllColumns, setShowAllColumns] = useState(false)
+  const [showAllColumns, setShowAllColumns] = useState(true)
 
   const { data, isLoading } = useQuery({
     queryKey: ["jobs", page, perPage, search],
@@ -87,7 +87,7 @@ export default function JobsPage() {
               size="sm"
               onClick={() => setShowAllColumns(!showAllColumns)}
             >
-              {showAllColumns ? "Essential View" : "All Columns"}
+              {showAllColumns ? "Compact View" : "Full View"}
             </Button>
             <Button 
               variant="outline" 
