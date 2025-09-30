@@ -1,69 +1,52 @@
-// This comment is added to force a Git commit.
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
+import { useState } from "react"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useRouter } from "next/navigation"
 import { jobsApi } from "@/lib/api"
 import { Button } from "@/components/ui/button"
-import { PlusCircle, Columns3, Eye, Settings } from "lucide-react"
-import { columns, essentialColumns, mobileColumns } from "./columns"
-import { DataTable } from "@/components/shared/data-table"
-import { DataTableSkeleton } from "@/components/shared/data-table-skeleton"
-import { useRouter } from "next/navigation"
-import { useState } from "react"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuCheckboxItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { PlusCircle } from "lucide-react"
+import { columns } from "./columns"
+import { ServerDataTable } from "@/components/shared/server-data-table"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { normalizePaginatedResponse } from "@/lib/pagination"
+import { toast } from "sonner"
 
 export default function JobsPage() {
   const router = useRouter()
-  const [showAllColumns, setShowAllColumns] = useState(false)
-  const [columnVisibility, setColumnVisibility] = useState({
-    serial_no: true,
-    location: true,
-    block_no: false,
-    tc: false,
-    unit_no: false,
-    area: true,
-    priority: true,
-    status: true,
-    report_date: false,
-    inspection_date: false,
-    repair_schedule: false,
-    ultra_schedule: false,
-    repair_completion: false,
-    resident_number: false,
-    created_at: false,
-    title: false,
-  })
-  
-  const { data: jobsResponse, isLoading } = useQuery({
-    queryKey: ["jobs"],
-    queryFn: () => jobsApi.getJobs(),
+  const queryClient = useQueryClient()
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(10)
+  const [search, setSearch] = useState("")
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["jobs", page, perPage, search],
+    queryFn: () => jobsApi.getJobs({ page, per_page: perPage, search }),
   })
 
-  const jobs = jobsResponse?.data || []
-  
-  // Create dynamic columns based on visibility settings
-  const getVisibleColumns = () => {
-    return columns.filter(column => {
-      if (column.id === "select" || column.id === "actions") return true
-      return columnVisibility[column.accessorKey as keyof typeof columnVisibility] ?? true
-    })
+  const paginatedData = normalizePaginatedResponse(data || {})
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => jobsApi.deleteJob(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jobs"] })
+      toast.success("Job deleted successfully")
+      setDeleteId(null)
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || "Failed to delete job")
+    },
+  })
+
+  const handleDelete = (id: string) => {
+    setDeleteId(id)
   }
-  
-  const currentColumns = showAllColumns ? columns : getVisibleColumns()
-  
-  // Debug logging
-  console.log("Jobs response:", jobsResponse)
-  console.log("Jobs data:", jobs)
-  if (jobs.length > 0) {
-    console.log("First job fields:", Object.keys(jobs[0]))
-    console.log("First job sample:", jobs[0])
+
+  const confirmDelete = () => {
+    if (deleteId) {
+      deleteMutation.mutate(deleteId)
+    }
   }
 
   return (
@@ -75,154 +58,48 @@ export default function JobsPage() {
             Manage and track all painting jobs with comprehensive details.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="flex items-center gap-2">
-                <Settings className="h-4 w-4" />
-                Columns ({currentColumns.length - 2})
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Show Columns</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {Object.entries(columnVisibility).map(([key, value]) => (
-                <DropdownMenuCheckboxItem
-                  key={key}
-                  checked={value}
-                  onCheckedChange={(checked) => 
-                    setColumnVisibility(prev => ({ ...prev, [key]: checked }))
-                  }
-                >
-                  {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                </DropdownMenuCheckboxItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem
-                checked={showAllColumns}
-                onCheckedChange={setShowAllColumns}
-              >
-                Show All Columns
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>Presets</DropdownMenuLabel>
-              <DropdownMenuCheckboxItem
-                checked={false}
-                onCheckedChange={() => {
-                  setColumnVisibility({
-                    serial_no: true,
-                    location: true,
-                    block_no: true,
-                    tc: true,
-                    unit_no: true,
-                    area: true,
-                    priority: true,
-                    status: true,
-                    report_date: true,
-                    inspection_date: true,
-                    repair_schedule: false,
-                    ultra_schedule: false,
-                    repair_completion: false,
-                    resident_number: false,
-                    created_at: false,
-                    title: false,
-                  })
-                  setShowAllColumns(false)
-                }}
-              >
-                Detailed View
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={false}
-                onCheckedChange={() => {
-                  setColumnVisibility({
-                    serial_no: true,
-                    location: true,
-                    block_no: false,
-                    tc: false,
-                    unit_no: false,
-                    area: true,
-                    priority: true,
-                    status: true,
-                    report_date: false,
-                    inspection_date: false,
-                    repair_schedule: false,
-                    ultra_schedule: false,
-                    repair_completion: false,
-                    resident_number: false,
-                    created_at: false,
-                    title: false,
-                  })
-                  setShowAllColumns(false)
-                }}
-              >
-                Essential View
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem
-                checked={false}
-                onCheckedChange={() => {
-                  setColumnVisibility({
-                    serial_no: true,
-                    location: true,
-                    block_no: false,
-                    tc: false,
-                    unit_no: false,
-                    area: true,
-                    priority: true,
-                    status: true,
-                    report_date: false,
-                    inspection_date: false,
-                    repair_schedule: false,
-                    ultra_schedule: false,
-                    repair_completion: false,
-                    resident_number: false,
-                    created_at: false,
-                    title: false,
-                  })
-                  setShowAllColumns(false)
-                }}
-              >
-                Reset to Default
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button onClick={() => router.push("/jobs/create")} className="w-full sm:w-auto">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Create Job
-          </Button>
-        </div>
+        <Button onClick={() => router.push("/jobs/create")} className="flex items-center gap-2">
+          <PlusCircle className="h-4 w-4" />
+          Create Job
+        </Button>
       </div>
-      
-      {isLoading ? (
-        <DataTableSkeleton columnCount={currentColumns.length} />
-      ) : (
-        <div className="w-full">
-          <div className="rounded-md border bg-white shadow-sm">
-            <div className="overflow-x-auto">
-              {/* Desktop: Full Excel-like table */}
-              <div className="hidden lg:block">
-                <DataTable 
-                  columns={currentColumns} 
-                  data={jobs} 
-                  filterColumn="location"
-                  className={showAllColumns ? "min-w-[1800px] text-xs" : "min-w-[800px] text-xs"}
-                />
-              </div>
-              
-              {/* Mobile/Tablet: Simplified table */}
-              <div className="block lg:hidden">
-                <DataTable 
-                  columns={mobileColumns} 
-                  data={jobs} 
-                  filterColumn="location"
-                  className="min-w-[600px] text-xs"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+
+      <ServerDataTable
+        columns={columns}
+        data={paginatedData.data}
+        total={paginatedData.total}
+        page={page}
+        perPage={perPage}
+        onPageChange={setPage}
+        onPerPageChange={setPerPage}
+        onSearchChange={(value) => {
+          setSearch(value)
+          setPage(1) // Reset to first page on search
+        }}
+        onDelete={handleDelete}
+        filterPlaceholder="Search by job number, location, or address..."
+        isLoading={isLoading}
+        toolbarContent={
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => router.push("/jobs/create")}
+          >
+            <PlusCircle className="h-4 w-4 mr-2" />
+            New Job
+          </Button>
+        }
+      />
+
+      <ConfirmDialog
+        open={deleteId !== null}
+        onOpenChange={(open) => !open && setDeleteId(null)}
+        onConfirm={confirmDelete}
+        title="Delete Job"
+        description="Are you sure you want to delete this job? This action cannot be undone and will also delete all associated job areas and documents."
+        confirmText="Delete"
+        cancelText="Cancel"
+      />
     </div>
   )
 }

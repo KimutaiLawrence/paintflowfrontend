@@ -128,7 +128,7 @@ export function Sidebar({ isCollapsed }: { isCollapsed: boolean }) {
             className="flex items-center gap-2 font-semibold"
           >
             <Package2 className="h-6 w-6" />
-            <span className={cn(isCollapsed && "sr-only")}>PaintFlow</span>
+            <span className={cn(isCollapsed && "sr-only")}>AS United</span>
           </Link>
         </div>
 
@@ -159,7 +159,7 @@ export function Sidebar({ isCollapsed }: { isCollapsed: boolean }) {
                 className="group flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full bg-primary text-lg font-semibold text-primary-foreground md:text-base"
               >
                 <Package2 className="h-5 w-5 transition-all group-hover:scale-110" />
-                <span className="sr-only">PaintFlow</span>
+                <span className="sr-only">AS United</span>
               </Link>
               {mobileNavLinks}
               <NavLink href="/settings" icon={Settings} label="Settings" isMobile />

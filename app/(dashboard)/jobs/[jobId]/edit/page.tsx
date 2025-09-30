@@ -35,6 +35,19 @@ const formSchema = z.object({
   address: z.string().min(1, "Address is required"),
   priority: z.string().min(1, "Priority is required"),
   description: z.string().optional(),
+  serial_no: z.string().optional(),
+  location: z.string().optional(),
+  block_no: z.string().optional(),
+  tc: z.string().optional(),
+  unit_no: z.string().optional(),
+  resident_number: z.string().optional(),
+  area: z.string().optional(),
+  report_date: z.string().optional(),
+  inspection_date: z.string().optional(),
+  repair_schedule: z.string().optional(),
+  ultra_schedule: z.string().optional(),
+  repair_completion: z.string().optional(),
+  status: z.string().optional(),
 })
 
 export default function EditJobPage() {
@@ -57,16 +70,42 @@ export default function EditJobPage() {
       address: "",
       priority: "P3",
       description: "",
+      serial_no: "",
+      location: "",
+      block_no: "",
+      tc: "",
+      unit_no: "",
+      resident_number: "",
+      area: "",
+      report_date: "",
+      inspection_date: "",
+      repair_schedule: "",
+      ultra_schedule: "",
+      repair_completion: "",
+      status: "",
     },
   })
   
   useEffect(() => {
     if (job) {
       form.reset({
-        title: job.title,
-        address: job.address,
-        priority: job.priority,
+        title: job.title || "",
+        address: job.address || "",
+        priority: job.priority || "P3",
         description: job.description || "",
+        serial_no: job.serial_no || "",
+        location: job.location || "",
+        block_no: job.block_no || "",
+        tc: job.tc || "",
+        unit_no: job.unit_no || "",
+        resident_number: job.resident_number || "",
+        area: job.area || "",
+        report_date: job.report_date ? job.report_date.split('T')[0] : "",
+        inspection_date: job.inspection_date ? job.inspection_date.split('T')[0] : "",
+        repair_schedule: job.repair_schedule ? job.repair_schedule.split('T')[0] : "",
+        ultra_schedule: job.ultra_schedule ? job.ultra_schedule.split('T')[0] : "",
+        repair_completion: job.repair_completion ? job.repair_completion.split('T')[0] : "",
+        status: job.status || "",
       })
     }
   }, [job, form])
@@ -74,13 +113,20 @@ export default function EditJobPage() {
   const updateJobMutation = useMutation({
     mutationFn: (values: z.infer<typeof formSchema>) => jobsApi.updateJob(jobId, values),
     onSuccess: () => {
-      toast.success("Job updated successfully!")
+      toast({
+        title: "Success",
+        description: "Job updated successfully!",
+      })
       queryClient.invalidateQueries({ queryKey: ["job", jobId] })
       queryClient.invalidateQueries({ queryKey: ["jobs"] })
       router.push(`/jobs/${jobId}`)
     },
-    onError: (error) => {
-      toast.error("Failed to update job", error.message)
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to update job",
+        variant: "destructive",
+      })
     },
   })
 
@@ -97,9 +143,9 @@ export default function EditJobPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-4xl mx-auto p-6">
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Edit Job Details</CardTitle>
@@ -133,28 +179,57 @@ export default function EditJobPage() {
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="priority"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Priority</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a priority" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="P1">P1 (High)</SelectItem>
-                        <SelectItem value="P2">P2 (Medium)</SelectItem>
-                        <SelectItem value="P3">P3 (Low)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="priority"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Priority</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a priority" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="P1">P1 (High)</SelectItem>
+                          <SelectItem value="P2">P2 (Medium)</SelectItem>
+                          <SelectItem value="P3">P3 (Low)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="pending_survey">Pending Survey</SelectItem>
+                          <SelectItem value="pending_repair">Pending Repair</SelectItem>
+                          <SelectItem value="left_primer">Left Primer</SelectItem>
+                          <SelectItem value="left_ultra">Left Ultra</SelectItem>
+                          <SelectItem value="left_top_coat_cover_slab">Left Top Coat/Cover Slab</SelectItem>
+                          <SelectItem value="repair_completed">Repair Completed</SelectItem>
+                          <SelectItem value="done">Done</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <FormField
                 control={form.control}
@@ -164,6 +239,189 @@ export default function EditJobPage() {
                     <FormLabel>Description (Optional)</FormLabel>
                     <FormControl>
                       <Textarea placeholder="Add any additional details about the job" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Excel Tracking Fields</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid md:grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="serial_no"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Serial No.</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Serial number" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="location"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Location</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Location" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="block_no"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Block No.</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Block number" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="tc"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>TC (Town Council)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="TC" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="unit_no"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Unit No.</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Unit number" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="resident_number"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Resident Number</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Resident number" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="area"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Area</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Area description" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="report_date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Report Date</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="inspection_date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Inspection Date</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="repair_schedule"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Repair Schedule</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="ultra_schedule"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Ultra Schedule</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="repair_completion"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Repair Completion</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

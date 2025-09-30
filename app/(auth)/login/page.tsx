@@ -58,7 +58,7 @@ export default function LoginPage() {
               <Paintbrush className="h-8 w-8 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Welcome to PaintFlow</CardTitle>
+          <CardTitle className="text-2xl font-bold">Welcome to AS United</CardTitle>
           <CardDescription>Digital Operations Platform for AS United PTE LTD</CardDescription>
         </CardHeader>
         <CardContent>

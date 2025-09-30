@@ -474,8 +474,10 @@ export const columns: ColumnDef<JobDetail>[] = [
   {
     id: "actions",
     header: "Actions",
-    cell: ({ row }) => {
+    cell: ({ row, table }) => {
       const job = row.original
+      const meta = table.options.meta as any
+      
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -486,17 +488,18 @@ export const columns: ColumnDef<JobDetail>[] = [
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(job.id)}
-            >
-              Copy Job ID
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <Link href={`/jobs/${job.id}`}>View Job Details</Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href={`/jobs/${job.id}/edit`}>Edit Job</Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-red-600"
+              onClick={() => meta?.onDelete?.(job.id)}
+            >
+              Delete Job
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

@@ -1,7 +1,6 @@
 import axios from "axios"
 
-// const API_BASE_URL = "https://paintflowbackendlive.onrender.com/api"
-const API_BASE_URL = "http://localhost:5000/api"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api"
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -65,7 +64,8 @@ export const dashboardApi = {
 }
 
 export const jobsApi = {
-  getJobs: (params?: { page?: number; per_page?: number }) => api.get("/jobs/", { params }).then(res => res.data),
+  getJobs: (params?: { page?: number; per_page?: number; search?: string; sort?: string; order?: 'asc' | 'desc' }) => 
+    api.get("/jobs/", { params }).then(res => res.data),
 
   getJob: (jobId: string) => api.get(`/jobs/${jobId}`),
 
@@ -108,7 +108,16 @@ export const documentsApi = {
 }
 
 export const workersApi = {
-  getWorkers: () => api.get("/workers/"),
+  getWorkers: (params?: { page?: number; per_page?: number; search?: string }) => 
+    api.get("/workers/", { params }).then(res => res.data),
+
+  getWorker: (workerId: string) => api.get(`/workers/${workerId}`),
+
+  createWorker: (workerData: any) => api.post("/workers/", workerData),
+
+  updateWorker: (workerId: string, workerData: any) => api.put(`/workers/${workerId}`, workerData),
+
+  deleteWorker: (workerId: string) => api.delete(`/workers/${workerId}`),
 
   assignWorker: (assignmentData: { worker_id: string; job_area_id: string }) =>
     api.post("/workers/assign", assignmentData),
@@ -139,7 +148,8 @@ export const reportsApi = {
 }
 
 export const usersApi = {
-  getUsers: () => api.get("/users/").then(res => res.data),
+  getUsers: (params?: { page?: number; per_page?: number; search?: string }) => 
+    api.get("/users/", { params }).then(res => res.data),
   getUser: (userId: string) => api.get(`/users/${userId}`),
   createUser: (userData: any) => api.post("/users/", userData),
   updateUser: (userId: string, userData: any) => api.put(`/users/${userId}`, userData),
