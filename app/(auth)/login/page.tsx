@@ -104,7 +104,7 @@ export default function LoginPage() {
             variant="outline"
             className="w-full"
             onClick={() => {
-              window.location.href = `https://paintflowbackendlive.onrender.com/api/auth/google/login`
+              window.location.href = `https://paintflowbackendd.onrender.com/api/auth/google/login`
             }}
           >
             <FaGoogle className="mr-2 h-4 w-4" />
