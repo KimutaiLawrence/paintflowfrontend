@@ -178,18 +178,18 @@ export const essentialColumns: ColumnDef<JobDetail>[] = [
     size: 120,
   },
   {
-    accessorKey: "area",
-    header: "Work Area",
+    accessorKey: "title",
+    header: "Job Title",
     cell: ({ row }) => {
-      const area = row.original.area || row.original.title
-      if (!area || area === "-") return <div className="text-sm text-gray-400">-</div>
+      const title = row.original.title
+      if (!title) return <div className="text-sm text-gray-400">-</div>
       return (
-        <div className="text-sm min-w-[120px] font-medium text-gray-700">
-          {area}
+        <div className="text-sm min-w-[150px] font-medium text-gray-700">
+          {title}
         </div>
       )
     },
-    size: 130,
+    size: 150,
   },
   {
     accessorKey: "priority",
