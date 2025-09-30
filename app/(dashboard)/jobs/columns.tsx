@@ -180,11 +180,15 @@ export const essentialColumns: ColumnDef<JobDetail>[] = [
   {
     accessorKey: "area",
     header: "Work Area",
-    cell: ({ row }) => (
-      <div className="text-sm min-w-[120px] font-medium text-gray-700">
-        {row.original.area || row.original.title}
-      </div>
-    ),
+    cell: ({ row }) => {
+      const area = row.original.area || row.original.title
+      if (!area || area === "-") return <div className="text-sm text-gray-400">-</div>
+      return (
+        <div className="text-sm min-w-[120px] font-medium text-gray-700">
+          {area}
+        </div>
+      )
+    },
     size: 130,
   },
   {
@@ -218,6 +222,20 @@ export const essentialColumns: ColumnDef<JobDetail>[] = [
       )
     },
     size: 140,
+  },
+  {
+    accessorKey: "created_at",
+    header: "Created",
+    cell: ({ row }) => {
+      const date = row.original.created_at
+      if (!date) return <div className="text-sm text-gray-400">-</div>
+      return (
+        <div className="text-sm text-gray-600">
+          {formatExcelDate(date)}
+        </div>
+      )
+    },
+    size: 100,
   },
   {
     id: "actions",

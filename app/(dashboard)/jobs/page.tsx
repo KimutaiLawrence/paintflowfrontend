@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { jobsApi } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { PlusCircle } from "lucide-react"
-import { columns } from "./columns"
+import { columns, essentialColumns } from "./columns"
 import { ServerDataTable } from "@/components/shared/server-data-table"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { normalizePaginatedResponse } from "@/lib/pagination"
@@ -19,6 +19,7 @@ export default function JobsPage() {
   const [perPage, setPerPage] = useState(10)
   const [search, setSearch] = useState("")
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [showAllColumns, setShowAllColumns] = useState(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ["jobs", page, perPage, search],
@@ -65,7 +66,7 @@ export default function JobsPage() {
       </div>
 
       <ServerDataTable
-        columns={columns}
+        columns={showAllColumns ? columns : essentialColumns}
         data={paginatedData.data}
         total={paginatedData.total}
         page={page}
@@ -80,14 +81,23 @@ export default function JobsPage() {
         filterPlaceholder="Search by job number, location, or address..."
         isLoading={isLoading}
         toolbarContent={
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => router.push("/jobs/create")}
-          >
-            <PlusCircle className="h-4 w-4 mr-2" />
-            New Job
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowAllColumns(!showAllColumns)}
+            >
+              {showAllColumns ? "Essential View" : "All Columns"}
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => router.push("/jobs/create")}
+            >
+              <PlusCircle className="h-4 w-4 mr-2" />
+              New Job
+            </Button>
+          </div>
         }
       />
 
