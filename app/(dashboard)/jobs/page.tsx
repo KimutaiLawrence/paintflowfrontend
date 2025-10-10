@@ -3,18 +3,21 @@
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
-import { jobsApi } from "@/lib/api"
+import { jobsApi, type JobDetail } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { PlusCircle } from "lucide-react"
+import { PageLoader } from "@/components/ui/custom-loader"
 import { columns, essentialColumns } from "./columns"
 import { ServerDataTable } from "@/components/shared/server-data-table"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { normalizePaginatedResponse } from "@/lib/pagination"
 import { toast } from "sonner"
+import { useAuth } from "@/hooks/use-auth"
 
 export default function JobsPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { user } = useAuth()
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(10)
   const [search, setSearch] = useState("")
@@ -51,23 +54,25 @@ export default function JobsPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="w-full space-y-4 p-4 md:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Jobs</h2>
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Jobs</h2>
           <p className="text-muted-foreground">
             Manage and track all painting jobs with comprehensive details.
           </p>
         </div>
-        <Button onClick={() => router.push("/jobs/create")} className="flex items-center gap-2">
-          <PlusCircle className="h-4 w-4" />
-          Create Job
-        </Button>
+        {user?.role !== "worker" && (
+          <Button onClick={() => router.push("/jobs/create")} className="flex items-center gap-2 w-full sm:w-auto">
+            <PlusCircle className="h-4 w-4" />
+            Create Job
+          </Button>
+        )}
       </div>
 
-      <ServerDataTable
+      <ServerDataTable<JobDetail, any>
         columns={showAllColumns ? columns : essentialColumns}
-        data={paginatedData.data}
+        data={paginatedData.data as JobDetail[]}
         total={paginatedData.total}
         page={page}
         perPage={perPage}
@@ -102,13 +107,12 @@ export default function JobsPage() {
       />
 
       <ConfirmDialog
-        open={deleteId !== null}
-        onOpenChange={(open) => !open && setDeleteId(null)}
+        isOpen={deleteId !== null}
+        onClose={() => setDeleteId(null)}
         onConfirm={confirmDelete}
         title="Delete Job"
         description="Are you sure you want to delete this job? This action cannot be undone and will also delete all associated job areas and documents."
-        confirmText="Delete"
-        cancelText="Cancel"
+        isLoading={deleteMutation.isPending}
       />
     </div>
   )

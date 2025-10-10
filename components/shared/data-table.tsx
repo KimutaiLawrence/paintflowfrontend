@@ -37,6 +37,7 @@ interface DataTableProps<TData, TValue> {
   data: TData[]
   filterColumn: string
   className?: string
+  meta?: any
 }
 
 export function DataTable<TData, TValue>({
@@ -44,6 +45,7 @@ export function DataTable<TData, TValue>({
   data,
   filterColumn,
   className,
+  meta,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -67,6 +69,7 @@ export function DataTable<TData, TValue>({
       columnVisibility,
       rowSelection,
     },
+    meta,
   })
 
   return (

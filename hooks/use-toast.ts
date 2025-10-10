@@ -8,7 +8,7 @@ type ToastOptions = {
   };
 };
 
-export const useToast = () => {
+const createToast = () => {
   const toast = (title: string, options?: ToastOptions) => {
     sonnerToast(title, {
       description: options?.description,
@@ -37,5 +37,11 @@ export const useToast = () => {
     });
   };
 
+  return toast;
+};
+
+export const toast = createToast();
+
+export const useToast = () => {
   return { toast };
 };

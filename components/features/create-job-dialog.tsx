@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Plus, Trash2, Loader2 } from "lucide-react"
+import { Plus, Trash2 } from "lucide-react"
+import { ButtonLoader } from "@/components/ui/custom-loader"
 import { jobCreationSchema, type JobCreationFormData } from "@/lib/validators"
 import { useToast } from "@/hooks/use-toast"
 import api from "@/lib/api"
@@ -151,7 +152,7 @@ export function CreateJobDialog({ open, onOpenChange }: CreateJobDialogProps) {
               Cancel
             </Button>
             <Button type="submit" disabled={createJobMutation.isPending}>
-              {createJobMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {createJobMutation.isPending && <ButtonLoader className="mr-2" />}
               Create Job
             </Button>
           </div>

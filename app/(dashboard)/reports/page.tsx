@@ -1,304 +1,397 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import { useQuery } from "@tanstack/react-query"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { FileText, Download, CalendarIcon, BarChart3, Users, CheckCircle, Briefcase } from "lucide-react"
-import { format } from "date-fns"
-import { api } from "@/lib/api"
-import { useAuth } from "@/hooks/use-auth"
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Plus, Search, Eye, Edit, Trash2, Download, FileText, Calendar, User } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { useToast } from '@/hooks/use-toast'
+import { completionReportsApi, CompletionReport } from '@/lib/api'
+import { ServerDataTable } from '@/components/shared/server-data-table'
+import { ButtonLoader } from '@/components/ui/custom-loader'
+import { format } from 'date-fns'
+import Link from 'next/link'
 
 export default function ReportsPage() {
-  const { user } = useAuth()
-  const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
-    from: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-    to: new Date(),
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [selectedReport, setSelectedReport] = useState<CompletionReport | null>(null)
+  const [createForm, setCreateForm] = useState({
+    job_id: '',
+    completion_date: '',
+    final_inspection_date: '',
+    inspector_name: '',
+    completion_notes: '',
+    areas_painted: [] as string[]
   })
-  const [reportType, setReportType] = useState("jobs")
-  const [isGenerating, setIsGenerating] = useState(false)
-
-  const { data: reportData, isLoading } = useQuery({
-    queryKey: ["reports", reportType, dateRange],
-    queryFn: () =>
-      api.reports.generate({
-        type: reportType,
-        start_date: format(dateRange.from, "yyyy-MM-dd"),
-        end_date: format(dateRange.to, "yyyy-MM-dd"),
-      }),
+  const [editForm, setEditForm] = useState({
+    completion_date: '',
+    final_inspection_date: '',
+    inspector_name: '',
+    completion_notes: '',
+    areas_painted: [] as string[]
   })
 
-  const handleGenerateReport = async () => {
-    setIsGenerating(true)
-    try {
-      const response = await api.reports.export({
-        type: reportType,
-        start_date: format(dateRange.from, "yyyy-MM-dd"),
-        end_date: format(dateRange.to, "yyyy-MM-dd"),
-        format: "pdf",
+  const { toast } = useToast()
+  const queryClient = useQueryClient()
+
+  // Fetch completion reports
+  const { data: reportsData, isLoading } = useQuery({
+    queryKey: ['completion-reports', page, search],
+    queryFn: () => completionReportsApi.getCompletionReports({
+      page,
+      per_page: 10,
+      search: search || undefined
+    })
+  })
+
+  // Create report mutation
+  const createMutation = useMutation({
+    mutationFn: (data: any) => completionReportsApi.createCompletionReport(createForm.job_id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['completion-reports'] })
+      setShowCreateDialog(false)
+      setCreateForm({
+        job_id: '',
+        completion_date: '',
+        final_inspection_date: '',
+        inspector_name: '',
+        completion_notes: '',
+        areas_painted: []
       })
+      toast("Completion report created successfully")
+    },
+    onError: (error: any) => {
+      toast.error("Failed to create completion report", {
+        description: error.message
+      })
+    }
+  })
 
-      // Create download link
-      const blob = new Blob([response], { type: "application/pdf" })
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `${reportType}-report-${format(new Date(), "yyyy-MM-dd")}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
-    } catch (error) {
-      console.error("Failed to generate report:", error)
-    } finally {
-      setIsGenerating(false)
+  // Update report mutation
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => 
+      completionReportsApi.updateCompletionReport(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['completion-reports'] })
+      setShowEditDialog(false)
+      setSelectedReport(null)
+      toast("Completion report updated successfully")
+    },
+    onError: (error: any) => {
+      toast.error("Failed to update completion report", {
+        description: error.message
+      })
+    }
+  })
+
+  // Delete report mutation
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => completionReportsApi.deleteCompletionReport(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['completion-reports'] })
+      toast("Completion report deleted successfully")
+    },
+    onError: (error: any) => {
+      toast.error("Failed to delete completion report", {
+        description: error.message
+      })
+    }
+  })
+
+  const handleCreate = () => {
+    if (!createForm.job_id || !createForm.completion_date) {
+      toast.error("Job ID and completion date are required")
+      return
+    }
+
+    createMutation.mutate(createForm)
+  }
+
+  const handleEdit = (report: CompletionReport) => {
+    setSelectedReport(report)
+    setEditForm({
+      completion_date: report.completion_date.split('T')[0], // Convert to date input format
+      final_inspection_date: report.final_inspection_date?.split('T')[0] || '',
+      inspector_name: report.inspector_name || '',
+      completion_notes: report.completion_notes || '',
+      areas_painted: report.areas_painted || []
+    })
+    setShowEditDialog(true)
+  }
+
+  const handleUpdate = () => {
+    if (!selectedReport) return
+
+    updateMutation.mutate({
+      id: selectedReport.id,
+      data: editForm
+    })
+  }
+
+  const handleDelete = (report: CompletionReport) => {
+    if (confirm(`Are you sure you want to delete the completion report for "${report.job_title}"?`)) {
+      deleteMutation.mutate(report.id)
     }
   }
 
-  const reportMetrics = reportData?.metrics || {}
+  const handleDownload = (report: CompletionReport) => {
+    // Here you would implement the download functionality
+    toast("Download functionality coming soon")
+  }
+
+  const columns = [
+    {
+      accessorKey: 'job_title',
+      header: 'Job Title',
+      cell: ({ row }: { row: any }) => (
+        <div className="font-medium">{row.getValue('job_title')}</div>
+      )
+    },
+    {
+      accessorKey: 'job_number',
+      header: 'Job Number',
+      cell: ({ row }: { row: any }) => (
+        <Badge variant="outline">{row.getValue('job_number')}</Badge>
+      )
+    },
+    {
+      accessorKey: 'completion_date',
+      header: 'Completion Date',
+      cell: ({ row }: { row: any }) => (
+        <div className="text-sm">
+          {format(new Date(row.getValue('completion_date')), 'MMM dd, yyyy')}
+        </div>
+      )
+    },
+    {
+      accessorKey: 'inspector_name',
+      header: 'Inspector',
+      cell: ({ row }: { row: any }) => (
+        <div className="text-sm">
+          {row.getValue('inspector_name') || '-'}
+        </div>
+      )
+    },
+    {
+      accessorKey: 'areas_painted',
+      header: 'Areas Painted',
+      cell: ({ row }: { row: any }) => {
+        const areas = row.getValue('areas_painted') || []
+        return (
+          <div className="text-sm">
+            {areas.length > 0 ? `${areas.length} areas` : 'No areas'}
+          </div>
+        )
+      }
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      cell: ({ row }: { row: any }) => {
+        const report = row.original as CompletionReport
+        return (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleDownload(report)}
+            >
+              <Download className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleEdit(report)}
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleDelete(report)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+            <Link href={`/jobs/${report.job_id}`}>
+              <Button variant="ghost" size="sm">
+                <Eye className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        )
+      }
+    }
+  ]
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Reports</h1>
-          <p className="text-muted-foreground">Generate and view detailed reports</p>
+          <h1 className="text-3xl font-bold">Completion Reports</h1>
+          <p className="text-muted-foreground">
+            View and manage job completion reports
+          </p>
         </div>
-        <Button
-          onClick={handleGenerateReport}
-          disabled={isGenerating}
-          className="bg-primary hover:bg-primary/90 text-primary-foreground"
-        >
-          <Download className="h-4 w-4 mr-2" />
-          {isGenerating ? "Generating..." : "Export PDF"}
-        </Button>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Jobs</CardTitle>
-            <Briefcase className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">{reportMetrics.total_jobs || 0}</div>
-            <p className="text-xs text-muted-foreground">+{reportMetrics.jobs_growth || 0}% from last period</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Completed Jobs</CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{reportMetrics.completed_jobs || 0}</div>
-            <p className="text-xs text-muted-foreground">{reportMetrics.completion_rate || 0}% completion rate</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Workers</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{reportMetrics.active_workers || 0}</div>
-            <p className="text-xs text-muted-foreground">Across all projects</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle>Report Configuration</CardTitle>
-            <CardDescription>Configure your report parameters</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Report Type</Label>
-              <Select value={reportType} onValueChange={setReportType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="jobs">Jobs Report</SelectItem>
-                  <SelectItem value="workers">Workers Report</SelectItem>
-                  <SelectItem value="productivity">Productivity Report</SelectItem>
-                  <SelectItem value="safety">Safety Report</SelectItem>
-                  <SelectItem value="financial">Financial Report</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Date Range</Label>
-              <div className="grid gap-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="justify-start text-left font-normal bg-transparent">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateRange.from ? format(dateRange.from, "PPP") : "Pick start date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={dateRange.from}
-                      onSelect={(date) => date && setDateRange((prev) => ({ ...prev, from: date }))}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="justify-start text-left font-normal bg-transparent">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateRange.to ? format(dateRange.to, "PPP") : "Pick end date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={dateRange.to}
-                      onSelect={(date) => date && setDateRange((prev) => ({ ...prev, to: date }))}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Quick Ranges</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setDateRange({
-                      from: new Date(new Date().setDate(new Date().getDate() - 7)),
-                      to: new Date(),
-                    })
-                  }
+        <div className="flex items-center gap-2">
+          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Report
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create Completion Report</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="job_id">Job ID *</Label>
+                  <Input
+                    id="job_id"
+                    value={createForm.job_id}
+                    onChange={(e) => setCreateForm({ ...createForm, job_id: e.target.value })}
+                    placeholder="Enter job ID"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="completion_date">Completion Date *</Label>
+                  <Input
+                    id="completion_date"
+                    type="date"
+                    value={createForm.completion_date}
+                    onChange={(e) => setCreateForm({ ...createForm, completion_date: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="final_inspection_date">Final Inspection Date</Label>
+                  <Input
+                    id="final_inspection_date"
+                    type="date"
+                    value={createForm.final_inspection_date}
+                    onChange={(e) => setCreateForm({ ...createForm, final_inspection_date: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="inspector_name">Inspector Name</Label>
+                  <Input
+                    id="inspector_name"
+                    value={createForm.inspector_name}
+                    onChange={(e) => setCreateForm({ ...createForm, inspector_name: e.target.value })}
+                    placeholder="Enter inspector name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="completion_notes">Completion Notes</Label>
+                  <Textarea
+                    id="completion_notes"
+                    value={createForm.completion_notes}
+                    onChange={(e) => setCreateForm({ ...createForm, completion_notes: e.target.value })}
+                    placeholder="Enter completion notes"
+                  />
+                </div>
+                <Button 
+                  onClick={handleCreate} 
+                  disabled={createMutation.isPending}
+                  className="w-full"
                 >
-                  Last 7 days
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setDateRange({
-                      from: new Date(new Date().setDate(new Date().getDate() - 30)),
-                      to: new Date(),
-                    })
-                  }
-                >
-                  Last 30 days
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setDateRange({
-                      from: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-                      to: new Date(),
-                    })
-                  }
-                >
-                  This month
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setDateRange({
-                      from: new Date(new Date().getFullYear(), 0, 1),
-                      to: new Date(),
-                    })
-                  }
-                >
-                  This year
+                  {createMutation.isPending && <ButtonLoader />}
+                  Create Report
                 </Button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Report Preview</CardTitle>
-            <CardDescription>Preview of your {reportType} report data</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              </div>
-            ) : (
-              <Tabs defaultValue="summary" className="space-y-4">
-                <TabsList>
-                  <TabsTrigger value="summary">Summary</TabsTrigger>
-                  <TabsTrigger value="details">Details</TabsTrigger>
-                  <TabsTrigger value="charts">Charts</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="summary" className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Period</Label>
-                      <p className="text-sm text-muted-foreground">
-                        {format(dateRange.from, "PPP")} - {format(dateRange.to, "PPP")}
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Report Type</Label>
-                      <Badge variant="outline" className="capitalize">
-                        {reportType}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <h4 className="font-medium">Key Metrics</h4>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
-                        <span className="text-sm">Total Records</span>
-                        <span className="font-medium">{reportMetrics.total_records || 0}</span>
-                      </div>
-                      <div className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
-                        <span className="text-sm">Average Duration</span>
-                        <span className="font-medium">{reportMetrics.avg_duration || 0} days</span>
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="details" className="space-y-4">
-                  <div className="text-center py-12 text-muted-foreground">
-                    <FileText className="h-12 w-12 mx-auto mb-4" />
-                    <p>Detailed report data will be available in the exported PDF</p>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="charts" className="space-y-4">
-                  <div className="text-center py-12 text-muted-foreground">
-                    <BarChart3 className="h-12 w-12 mx-auto mb-4" />
-                    <p>Charts and visualizations will be included in the exported report</p>
-                  </div>
-                </TabsContent>
-              </Tabs>
-            )}
-          </CardContent>
-        </Card>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <Input
+                placeholder="Search completion reports..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="max-w-sm"
+              />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <ServerDataTable
+            columns={columns}
+            data={reportsData?.data || []}
+            total={reportsData?.total || 0}
+            page={page}
+            perPage={reportsData?.per_page || 10}
+            onPageChange={setPage}
+            isLoading={isLoading}
+            filterPlaceholder="Search completion reports..."
+            onSearchChange={setSearch}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Completion Report</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-completion_date">Completion Date</Label>
+              <Input
+                id="edit-completion_date"
+                type="date"
+                value={editForm.completion_date}
+                onChange={(e) => setEditForm({ ...editForm, completion_date: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-final_inspection_date">Final Inspection Date</Label>
+              <Input
+                id="edit-final_inspection_date"
+                type="date"
+                value={editForm.final_inspection_date}
+                onChange={(e) => setEditForm({ ...editForm, final_inspection_date: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-inspector_name">Inspector Name</Label>
+              <Input
+                id="edit-inspector_name"
+                value={editForm.inspector_name}
+                onChange={(e) => setEditForm({ ...editForm, inspector_name: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-completion_notes">Completion Notes</Label>
+              <Textarea
+                id="edit-completion_notes"
+                value={editForm.completion_notes}
+                onChange={(e) => setEditForm({ ...editForm, completion_notes: e.target.value })}
+              />
+            </div>
+            <Button 
+              onClick={handleUpdate} 
+              disabled={updateMutation.isPending}
+              className="w-full"
+            >
+              {updateMutation.isPending && <ButtonLoader />}
+              Update Report
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

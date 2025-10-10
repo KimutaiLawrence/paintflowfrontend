@@ -5,7 +5,7 @@ import type React from "react"
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
-import { Loader2 } from "lucide-react"
+import { PageLoader } from "@/components/ui/custom-loader"
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -29,11 +29,7 @@ export function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps)
   }, [isAuthenticated, hasRole, requiredRoles, router])
 
   if (!isAuthenticated || !user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    )
+    return <PageLoader className="min-h-screen" />
   }
 
   if (requiredRoles && !requiredRoles.some((role) => hasRole(role))) {

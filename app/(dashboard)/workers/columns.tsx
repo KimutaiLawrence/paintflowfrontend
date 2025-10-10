@@ -29,9 +29,11 @@ export interface Worker {
 
 const getRoleBadgeColor = (role: string) => {
   switch (role) {
-    case "admin":
+    case "superadmin":
+      return "bg-purple-100 text-purple-800 border-purple-200"
+    case "manager":
       return "bg-red-100 text-red-800 border-red-200"
-    case "supervisor":
+    case "client":
       return "bg-blue-100 text-blue-800 border-blue-200"
     case "worker":
       return "bg-green-100 text-green-800 border-green-200"

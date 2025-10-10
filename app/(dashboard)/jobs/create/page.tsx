@@ -1,12 +1,12 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useForm, useFieldArray } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { useMutation } from "@tanstack/react-query"
-import { jobsApi } from "@/lib/api"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { jobsApi, locationsApi, townCouncilsApi, jobTitlesApi, type Location, type TownCouncil, type JobTitle } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -24,49 +24,121 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import { Loader2, PlusCircle, Trash2 } from "lucide-react"
+import { VerticalStepper } from "@/components/ui/vertical-stepper"
+import { Combobox } from "@/components/ui/combobox"
+import { ArrowLeft, ArrowRight } from "lucide-react"
+import { ButtonLoader } from "@/components/ui/custom-loader"
 import { useToast } from "@/hooks/use-toast"
-import Link from "next/link"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 
 const areaSchema = z.object({
   name: z.string().min(1, "Area name is required"),
 })
 
 const formSchema = z.object({
+  // Step 1: Basic Information
+  job_title_id: z.string().optional(),
   title: z.string().min(1, "Job title is required"),
-  address: z.string().min(1, "Address is required"),
-  priority: z.string().min(1, "Priority is required"),
   description: z.string().optional(),
-  areas: z.array(areaSchema).min(1, "At least one job area is required"),
-  // New required fields
-  serial_no: z.string().optional(),
-  location: z.string().optional(),
-  block_no: z.string().optional(),
-  tc: z.string().optional(),
-  unit_no: z.string().optional(),
-  resident_number: z.string().optional(),
-  area: z.string().optional(),
-  report_date: z.string().optional(),
-  inspection_date: z.string().optional(),
-  repair_schedule: z.string().optional(),
-  ultra_schedule: z.string().optional(),
+  priority: z.enum(["P1", "P2", "P3"]).default("P3"),
+  
+  // Step 2: Job Details
+  location_id: z.string().optional(),
+  location: z.string().min(1, "Location is required"),
+  town_council_id: z.string().optional(),
+  tc: z.string().min(1, "Town council is required"),
+  street_name: z.string().optional(),
+  block_no: z.string().min(1, "Block number is required"),
+  unit_no: z.string().min(1, "Unit number is required"),
+  resident_number: z.string().min(1, "Resident number is required"),
+  area: z.string().min(1, "Area is required"),
+  
+  // Step 3: Schedule & Dates
+  report_date: z.string(),
+  inspection_date: z.string().min(1, "Inspection date is required"),
+  repair_schedule: z.string().min(1, "Repair schedule is required"),
+  ultra_schedule: z.string(),
   repair_completion: z.string().optional(),
-  status: z.string().optional(),
+  
+  // Areas
+  areas: z.array(areaSchema).min(1, "At least one job area is required"),
 })
+
+type FormData = z.infer<typeof formSchema>
+
+const steps = [
+  { title: "Basic Information", description: "Job title and priority" },
+  { title: "Job Details", description: "Location and property details" },
+  { title: "Schedule & Dates", description: "Timeline and milestones" },
+]
 
 export default function CreateJobPage() {
   const router = useRouter()
   const { toast } = useToast()
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const queryClient = useQueryClient()
+  const [currentStep, setCurrentStep] = useState(0)
+  const [customLocation, setCustomLocation] = useState("")
+  const [customTC, setCustomTC] = useState("")
+  
+  // State for job title creation dialog
+  const [showJobTitleDialog, setShowJobTitleDialog] = useState(false)
+  const [newJobTitleData, setNewJobTitleData] = useState({ title: "", description: "" })
+
+  // Fetch job titles, locations, and town councils
+  const { data: jobTitlesData } = useQuery({
+    queryKey: ["jobTitles"],
+    queryFn: () => jobTitlesApi.getJobTitles({ per_page: 100 }),
+  })
+  const jobTitles = jobTitlesData?.data || []
+  const defaultJobTitle = jobTitles.find((jt: JobTitle) => jt.is_default)
+
+  const { data: locationsData } = useQuery({
+    queryKey: ["locations"],
+    queryFn: () => locationsApi.getLocations({ per_page: 100 }),
+  })
+  const locations = locationsData?.data || []
+
+  const { data: townCouncilsData } = useQuery({
+    queryKey: ["townCouncils"],
+    queryFn: () => townCouncilsApi.getTownCouncils({ per_page: 100 }),
+  })
+  const townCouncils = townCouncilsData?.data || []
+
+  // Auto-fill report_date with today
+  const today = new Date().toISOString().split("T")[0]
+
+  const form = useForm<FormData>({
+    resolver: zodResolver(formSchema) as any,
     defaultValues: {
+      job_title_id: "",
       title: "",
-      address: "",
-      priority: "P3",
       description: "",
+      priority: "P3",
+      location: "",
+      location_id: "",
+      tc: "",
+      town_council_id: "",
+      street_name: "",
+      block_no: "",
+      unit_no: "",
+      resident_number: "",
+      area: "",
+      report_date: today, // Auto-filled
+      inspection_date: "",
+      repair_schedule: "",
+      ultra_schedule: "",
+      repair_completion: "",
       areas: [{ name: "" }],
     },
   })
@@ -76,380 +148,600 @@ export default function CreateJobPage() {
     name: "areas",
   })
 
-  const createJobMutation = useMutation({
-    mutationFn: jobsApi.createJob,
+  // Auto-fill title and description from default job title
+  useEffect(() => {
+    if (defaultJobTitle && !form.getValues("title")) {
+      form.setValue("job_title_id", defaultJobTitle.id)
+      form.setValue("title", defaultJobTitle.title)
+      if (defaultJobTitle.description) {
+        form.setValue("description", defaultJobTitle.description)
+      }
+    }
+  }, [defaultJobTitle, form])
+
+  // Auto-calculate ultra_schedule when repair_schedule changes
+  const repairSchedule = form.watch("repair_schedule")
+  useEffect(() => {
+    if (repairSchedule) {
+      const repairDate = new Date(repairSchedule)
+      repairDate.setDate(repairDate.getDate() + 7) // Add 7 days
+      form.setValue("ultra_schedule", repairDate.toISOString().split("T")[0])
+    }
+  }, [repairSchedule, form])
+
+  const createMutation = useMutation({
+    mutationFn: (data: FormData) => jobsApi.createJob(data),
     onSuccess: () => {
-      toast.success("Job created successfully!")
+      toast.success("Success", { description: "Job created successfully" })
       router.push("/jobs")
     },
-    onError: (error) => {
-      toast.error("Failed to create job", error.message)
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.message || error.message || "Failed to create job"
+      toast.error("Error", { description: errorMessage })
     },
   })
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    createJobMutation.mutate(values)
+  const createJobTitleMutation = useMutation({
+    mutationFn: (data: { title: string; description?: string }) => jobTitlesApi.createJobTitle(data),
+    onSuccess: (newJobTitle) => {
+      queryClient.invalidateQueries({ queryKey: ["jobTitles"] })
+      form.setValue("job_title_id", newJobTitle.id)
+      form.setValue("title", newJobTitle.title)
+      if (newJobTitle.description) {
+        form.setValue("description", newJobTitle.description)
+      }
+      setShowJobTitleDialog(false)
+      setNewJobTitleData({ title: "", description: "" })
+      toast.success("Success", { description: "Job title created successfully" })
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.message || error.message || "Failed to create job title"
+      toast.error("Error", { description: errorMessage })
+    },
+  })
+
+  const handleCreateJobTitle = () => {
+    if (!newJobTitleData.title.trim()) {
+      toast.error("Error", { description: "Job title is required" })
+      return
+    }
+    createJobTitleMutation.mutate(newJobTitleData)
   }
 
+  const onSubmit = (data: FormData) => {
+    createMutation.mutate(data)
+  }
+
+  const nextStep = async () => {
+    let fieldsToValidate: (keyof FormData)[] = []
+    
+    if (currentStep === 0) {
+      fieldsToValidate = ["title", "priority"]
+    } else if (currentStep === 1) {
+      fieldsToValidate = ["location", "tc", "block_no", "unit_no", "resident_number", "area"]
+    } else if (currentStep === 2) {
+      fieldsToValidate = ["inspection_date", "repair_schedule"]
+    }
+
+    const result = await form.trigger(fieldsToValidate)
+    if (result && currentStep < steps.length - 1) {
+      setCurrentStep(currentStep + 1)
+    }
+  }
+
+  const prevStep = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1)
+    }
+  }
+
+  // Convert locations to combobox options
+  const locationOptions = locations.map((loc: Location) => ({
+    value: loc.id,
+    label: loc.name,
+  }))
+
+  // Convert town councils to combobox options with shortform
+  const tcOptions = townCouncils.map((tc: TownCouncil) => ({
+    value: tc.id,
+    label: `${tc.name} (${tc.shortform})`,
+  }))
+
   return (
-    <div className="max-w-4xl mx-auto">
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+    <div className="container max-w-7xl mx-auto p-6">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold">Create New Job</h1>
+        <p className="text-muted-foreground mt-2">
+          Fill in the job details across three steps
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-8">
+        {/* Vertical Stepper (Left) */}
+        <div className="lg:sticky lg:top-6 h-fit">
           <Card>
             <CardHeader>
-              <CardTitle>Create New Job</CardTitle>
+              <CardTitle className="text-lg">Progress</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <FormField
-                control={form.control}
-                name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Job Title</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., Repainting works at Block 123" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Address</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., Bishan St 22, Block 123" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="priority"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Priority</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a priority" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="P1">P1 (High)</SelectItem>
-                        <SelectItem value="P2">P2 (Medium)</SelectItem>
-                        <SelectItem value="P3">P3 (Low)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description (Optional)</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Add any additional details about the job" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <Separator />
-
-              {/* New Required Fields */}
-              <div className="grid md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="serial_no"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Serial No.</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter serial number" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="location"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Location</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select or type location" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Bishan">Bishan</SelectItem>
-                          <SelectItem value="Tampines">Tampines</SelectItem>
-                          <SelectItem value="Jurong">Jurong</SelectItem>
-                          <SelectItem value="Woodlands">Woodlands</SelectItem>
-                          <SelectItem value="Other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="block_no"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Block No.</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter block number" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="tc"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>TC (Town Council)</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select Town Council" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="BTPTC">BTPTC</SelectItem>
-                          <SelectItem value="CCKTC">CCKTC</SelectItem>
-                          <SelectItem value="ECTC">ECTC</SelectItem>
-                          <SelectItem value="JBTC">JBTC</SelectItem>
-                          <SelectItem value="JCTC">JCTC</SelectItem>
-                          <SelectItem value="JRBBTC">JRBBTC</SelectItem>
-                          <SelectItem value="JRTC">JRTC</SelectItem>
-                          <SelectItem value="MPTC">MPTC</SelectItem>
-                          <SelectItem value="TPTC">TPTC</SelectItem>
-                          <SelectItem value="WCTC">WCTC</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="unit_no"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Unit No.</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter unit number" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="resident_number"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Resident Number</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter resident number" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="area"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Area</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter area description" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="report_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Report Date</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="inspection_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Inspection Date</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="repair_schedule"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Repair Schedule</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="ultra_schedule"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Ultra Schedule</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="repair_completion"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Repair Completion</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Status</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select status" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="pending_survey">Pending Survey</SelectItem>
-                          <SelectItem value="pending_repair">Pending Repair</SelectItem>
-                          <SelectItem value="left_primer">Left Primer</SelectItem>
-                          <SelectItem value="left_ultra">Left Ultra</SelectItem>
-                          <SelectItem value="left_top_coat_cover_slab">Left Top Coat/Cover Slab</SelectItem>
-                          <SelectItem value="repair_completed">Repair Completed</SelectItem>
-                          <SelectItem value="done">Done</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+            <CardContent>
+              <VerticalStepper steps={steps} currentStep={currentStep} />
             </CardContent>
           </Card>
+        </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Job Areas</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {fields.map((field, index) => (
-                <div key={field.id} className="flex items-end gap-4">
-                  <FormField
-                    control={form.control}
-                    name={`areas.${index}.name`}
-                    render={({ field }) => (
-                      <FormItem className="flex-1">
-                        <FormLabel>Area Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., Living Room & Kitchen" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon"
-                    onClick={() => remove(index)}
-                    disabled={fields.length <= 1}
-                  >
-                    <Trash2 className="h-4 w-4" />
+        {/* Form Content (Right) */}
+        <div>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>{steps[currentStep].title}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Step 1: Basic Information */}
+                  {currentStep === 0 && (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="title"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Job Title *</FormLabel>
+                            <FormControl>
+                              <Combobox
+                                options={jobTitles.map((jt: JobTitle) => ({
+                                  value: jt.id,
+                                  label: jt.is_default ? `${jt.title} (Default)` : jt.title,
+                                }))}
+                                value={form.watch("job_title_id")}
+                                onSelect={(value) => {
+                                  const selected = jobTitles.find((jt: JobTitle) => jt.id === value)
+                                  if (selected) {
+                                    form.setValue("job_title_id", selected.id)
+                                    form.setValue("title", selected.title)
+                                    if (selected.description) {
+                                      form.setValue("description", selected.description)
+                                    }
+                                  }
+                                }}
+                                onCustomValue={(value) => {
+                                  // Open dialog to create new job title with description
+                                  setNewJobTitleData({ title: value, description: "" })
+                                  setShowJobTitleDialog(true)
+                                }}
+                                placeholder="Select or type job title"
+                                searchPlaceholder="Search job titles..."
+                                allowCustom
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Select from existing job titles or type to create a new one
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="description"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Description</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="Enter job description (optional)"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="priority"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Priority *</FormLabel>
+                            <Select
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select priority" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="P1">P1 - High Priority</SelectItem>
+                                <SelectItem value="P2">P2 - Medium Priority</SelectItem>
+                                <SelectItem value="P3">P3 - Low Priority</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </>
+                  )}
+
+                  {/* Step 2: Job Details */}
+                  {currentStep === 1 && (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="location"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Location *</FormLabel>
+                            <FormControl>
+                              <Combobox
+                                options={locationOptions}
+                                value={form.watch("location_id")}
+                                onSelect={(value) => {
+                                  const selected = locations.find((l: Location) => l.id === value)
+                                  if (selected) {
+                                    form.setValue("location_id", selected.id)
+                                    form.setValue("location", selected.name)
+                                  }
+                                }}
+                                onCustomValue={async (value) => {
+                                  try {
+                                    const newLocation = await locationsApi.createLocation({ name: value })
+                                    form.setValue("location_id", newLocation.id)
+                                    form.setValue("location", newLocation.name)
+                                    // Refetch locations
+                                    queryClient.invalidateQueries({ queryKey: ["locations"] })
+                                  } catch (error) {
+                                    form.setValue("location", value)
+                                    form.setValue("location_id", "")
+                                  }
+                                }}
+                                placeholder="Select or type location..."
+                                searchPlaceholder="Search locations..."
+                                emptyText="No location found."
+                                allowCustom={true}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Select from list or type to create new
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="tc"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Town Council *</FormLabel>
+                            <FormControl>
+                              <Combobox
+                                options={tcOptions}
+                                value={form.watch("town_council_id")}
+                                onSelect={(value) => {
+                                  const selected = townCouncils.find((tc: TownCouncil) => tc.id === value)
+                                  if (selected) {
+                                    form.setValue("town_council_id", selected.id)
+                                    form.setValue("tc", selected.shortform)
+                                  }
+                                }}
+                                onCustomValue={async (value) => {
+                                  try {
+                                    // Auto-generate shortform from name (first letters of each word)
+                                    const shortform = value
+                                      .split(' ')
+                                      .map(word => word.charAt(0).toUpperCase())
+                                      .join('') + 'TC'
+                                    
+                                    const newTC = await townCouncilsApi.createTownCouncil({ 
+                                      name: value, 
+                                      shortform 
+                                    })
+                                    form.setValue("town_council_id", newTC.id)
+                                    form.setValue("tc", newTC.shortform)
+                                    // Refetch town councils
+                                    queryClient.invalidateQueries({ queryKey: ["townCouncils"] })
+                                  } catch (error) {
+                                    form.setValue("tc", value)
+                                    form.setValue("town_council_id", "")
+                                  }
+                                }}
+                                placeholder="Select or type town council..."
+                                searchPlaceholder="Search town councils..."
+                                emptyText="No town council found."
+                                allowCustom={true}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Select from list or type to create new
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="street_name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Street Name</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Enter street name (optional)" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="block_no"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Block No *</FormLabel>
+                              <FormControl>
+                                <Input placeholder="e.g., 123" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="unit_no"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Unit No *</FormLabel>
+                              <FormControl>
+                                <Input placeholder="e.g., #12-297" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <FormField
+                        control={form.control}
+                        name="resident_number"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Resident Number *</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Enter resident number" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="area"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Area *</FormLabel>
+                            <FormControl>
+                              <Input placeholder="e.g., Living Room & Kitchen" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Job Areas */}
+                      <div className="space-y-4 pt-4 border-t">
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm font-medium">Job Areas *</label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => append({ name: "" })}
+                          >
+                            Add Area
+                          </Button>
+                        </div>
+                        {fields.map((field, index) => (
+                          <div key={field.id} className="flex gap-2">
+                            <FormField
+                              control={form.control}
+                              name={`areas.${index}.name`}
+                              render={({ field }) => (
+                                <FormItem className="flex-1">
+                                  <FormControl>
+                                    <Input placeholder="Area name" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            {fields.length > 1 && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={() => remove(index)}
+                              >
+                                ×
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Step 3: Schedule & Dates */}
+                  {currentStep === 2 && (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="report_date"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Report Date</FormLabel>
+                            <FormControl>
+                              <Input type="date" {...field} disabled />
+                            </FormControl>
+                            <FormDescription>
+                              Auto-filled with current date
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="inspection_date"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Inspection Date *</FormLabel>
+                            <FormControl>
+                              <Input type="date" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="repair_schedule"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Repair Schedule *</FormLabel>
+                            <FormControl>
+                              <Input type="date" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="ultra_schedule"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Ultra Schedule</FormLabel>
+                            <FormControl>
+                              <Input type="date" {...field} disabled />
+                            </FormControl>
+                            <FormDescription>
+                              Auto-calculated as Repair Schedule + 7 days
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="repair_completion"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Repair Completion</FormLabel>
+                            <FormControl>
+                              <Input type="date" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Navigation Buttons */}
+              <div className="flex justify-between">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={prevStep}
+                  disabled={currentStep === 0}
+                >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Previous
+                </Button>
+
+                {currentStep < steps.length - 1 ? (
+                  <Button type="button" onClick={nextStep}>
+                    Next
+                    <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
-                </div>
-              ))}
-              <Separator />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mt-2"
-                onClick={() => append({ name: "" })}
-              >
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add Area
-              </Button>
-            </CardContent>
-          </Card>
+                ) : (
+                  <Button type="submit" disabled={createMutation.isPending}>
+                    {createMutation.isPending ? (
+                      <>
+                        <ButtonLoader />
+                        Creating...
+                      </>
+                    ) : (
+                      "Create Job"
+                    )}
+                  </Button>
+                )}
+              </div>
+            </form>
+          </Form>
+        </div>
+      </div>
 
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" asChild>
-              <Link href="/jobs">Cancel</Link>
-            </Button>
-            <Button type="submit" disabled={createJobMutation.isPending}>
-              {createJobMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create Job
-            </Button>
+      {/* Job Title Creation Dialog */}
+      <Dialog open={showJobTitleDialog} onOpenChange={setShowJobTitleDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Job Title</DialogTitle>
+            <DialogDescription>
+              Add a new job title template that can be reused for future jobs.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="new-job-title">Title *</Label>
+              <Input
+                id="new-job-title"
+                value={newJobTitleData.title}
+                onChange={(e) => setNewJobTitleData({ ...newJobTitleData, title: e.target.value })}
+                placeholder="e.g., Waterproofing Repair Works"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="new-job-description">Description</Label>
+              <Textarea
+                id="new-job-description"
+                value={newJobTitleData.description}
+                onChange={(e) => setNewJobTitleData({ ...newJobTitleData, description: e.target.value })}
+                placeholder="Brief description of this job type"
+                rows={3}
+              />
+            </div>
           </div>
-        </form>
-      </Form>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowJobTitleDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleCreateJobTitle} 
+              disabled={!newJobTitleData.title.trim() || createJobTitleMutation.isPending}
+            >
+              {createJobTitleMutation.isPending ? "Creating..." : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

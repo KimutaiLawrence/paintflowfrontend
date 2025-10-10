@@ -27,6 +27,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from "lucide-react"
+import { InlineLoader } from "@/components/ui/custom-loader"
 import { getPaginationText } from "@/lib/pagination"
 
 interface ServerDataTableProps<TData, TValue> {
@@ -42,6 +43,7 @@ interface ServerDataTableProps<TData, TValue> {
   isLoading?: boolean
   toolbarContent?: React.ReactNode
   onDelete?: (id: string) => void
+  meta?: Record<string, any>
 }
 
 export function ServerDataTable<TData, TValue>({
@@ -57,6 +59,7 @@ export function ServerDataTable<TData, TValue>({
   isLoading = false,
   toolbarContent,
   onDelete,
+  meta: customMeta,
 }: ServerDataTableProps<TData, TValue>) {
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = React.useState({})
@@ -74,7 +77,7 @@ export function ServerDataTable<TData, TValue>({
     },
     manualPagination: true,
     pageCount: Math.ceil(total / perPage),
-    meta: {
+    meta: customMeta || {
       onDelete: onDelete || ((id: string) => console.log("Delete called for id:", id))
     }
   })
@@ -161,10 +164,7 @@ export function ServerDataTable<TData, TValue>({
                   colSpan={columns.length}
                   className="h-24 text-center"
                 >
-                  <div className="flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                    <span className="ml-2">Loading...</span>
-                  </div>
+                  <InlineLoader />
                 </TableCell>
               </TableRow>
             ) : table.getRowModel().rows?.length ? (

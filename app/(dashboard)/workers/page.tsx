@@ -1,47 +1,51 @@
 "use client"
 
+import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { PlusCircle, Users } from "lucide-react"
 import { ServerDataTable } from "@/components/shared/server-data-table"
 import { columns, type Worker } from "./columns"
-import api from "@/lib/api"
-import { normalizePaginatedResponse } from "@/lib/pagination"
+import { workersApi } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/hooks/use-auth"
-import type { PaginationParams } from "@/lib/pagination"
 
 export default function WorkersPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { toast } = useToast()
-  const { user } = useAuth()
+  const { canManageUsers, canDelete } = useAuth()
+  
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(10)
+  const [search, setSearch] = useState("")
 
-  // Fetcher function for server pagination
-  const fetchWorkers = async (params: PaginationParams) => {
-    const response = await api.get("/workers/", { params })
-    return normalizePaginatedResponse<Worker>(response.data)
-  }
+  // Fetch workers with pagination
+  const { data, isLoading } = useQuery({
+    queryKey: ["workers", page, perPage, search],
+    queryFn: async () => {
+      const response = await workersApi.getWorkers({
+        page,
+        per_page: perPage,
+        search,
+      })
+      return response
+    },
+  })
 
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (workerId: string) => {
-      await api.delete(`/workers/${workerId}`)
+      await workersApi.deleteWorker(workerId)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workers"] })
-      toast({
-        title: "Worker deleted",
-        description: "The worker has been successfully deactivated.",
-      })
+      toast.success("Success", { description: "Worker deleted successfully" })
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.response?.data?.message || "Failed to delete worker",
-        variant: "destructive",
-      })
+      const errorMessage = error.response?.data?.message || error.message || "Failed to delete worker"
+      toast.error("Error", { description: errorMessage })
     },
   })
 
@@ -51,8 +55,6 @@ export default function WorkersPage() {
     }
   }
 
-  const canManageWorkers = user?.role === "admin" || user?.role === "supervisor"
-
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -60,7 +62,7 @@ export default function WorkersPage() {
           <h1 className="text-3xl font-bold text-foreground">Workers</h1>
           <p className="text-muted-foreground">Manage your team members and their assignments</p>
         </div>
-        {canManageWorkers && (
+        {canManageUsers() && (
           <Button onClick={() => router.push("/workers/create")} className="flex items-center gap-2">
             <PlusCircle className="h-4 w-4" />
             Add Worker
@@ -70,14 +72,17 @@ export default function WorkersPage() {
 
       <ServerDataTable
         columns={columns}
-        queryKey={["workers"]}
-        fetcher={fetchWorkers}
-        onDelete={handleDelete}
-        searchPlaceholder="Search workers by name, email, or username..."
-        emptyState={{
-          icon: <Users className="h-12 w-12 text-muted-foreground" />,
-          title: "No workers found",
-          description: "Get started by adding your first worker.",
+        data={data?.data || []}
+        total={data?.total || 0}
+        page={page}
+        perPage={perPage}
+        onPageChange={setPage}
+        onPerPageChange={setPerPage}
+        onSearchChange={setSearch}
+        filterPlaceholder="Search workers by name, email, or username..."
+        isLoading={isLoading}
+        meta={{
+          onDelete: canDelete() ? handleDelete : undefined
         }}
       />
     </div>

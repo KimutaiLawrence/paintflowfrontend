@@ -12,7 +12,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Badge } from "@/components/ui/badge"
 import { User } from "@/lib/api"
+import Link from "next/link"
+
+// Role display helper
+const getRoleDisplay = (role: string) => {
+  const roleMap: Record<string, { label: string; color: string }> = {
+    superadmin: { label: "Super Admin", color: "bg-purple-100 text-purple-800 border-purple-200" },
+    manager: { label: "Manager", color: "bg-red-100 text-red-800 border-red-200" },
+    client: { label: "Client", color: "bg-blue-100 text-blue-800 border-blue-200" },
+    worker: { label: "Worker", color: "bg-green-100 text-green-800 border-green-200" },
+  }
+  return roleMap[role] || { label: role, color: "bg-gray-100 text-gray-800 border-gray-200" }
+}
 
 export const columns: ColumnDef<User>[] = [
   {
@@ -60,7 +73,15 @@ export const columns: ColumnDef<User>[] = [
   {
     accessorKey: "role",
     header: "Role",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("role")}</div>,
+    cell: ({ row }) => {
+      const role = row.getValue("role") as string
+      const roleInfo = getRoleDisplay(role)
+      return (
+        <Badge className={roleInfo.color}>
+          {roleInfo.label}
+        </Badge>
+      )
+    },
   },
   {
     accessorKey: "email",
@@ -69,8 +90,10 @@ export const columns: ColumnDef<User>[] = [
   },
   {
     id: "actions",
-    cell: ({ row }) => {
+    cell: ({ row, table }) => {
       const user = row.original
+      const meta = table.options.meta as any
+
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -87,8 +110,17 @@ export const columns: ColumnDef<User>[] = [
               Copy User ID
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Edit User</DropdownMenuItem>
-            <DropdownMenuItem className="text-red-500">Delete User</DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`/users/${user.id}/edit`}>Edit User</Link>
+            </DropdownMenuItem>
+            {user.role !== 'superadmin' && (
+              <DropdownMenuItem 
+                className="text-red-600"
+                onClick={() => meta?.onDelete?.(user.id)}
+              >
+                Delete User
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       )

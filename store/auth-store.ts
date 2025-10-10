@@ -1,51 +1,48 @@
+"use client"
+
 import { create } from "zustand"
-import { persist } from "zustand/middleware"
-import { createJSONStorage } from "zustand/middleware"
+import { persist, createJSONStorage } from "zustand/middleware"
 
 export interface User {
   id: string
   username: string
   full_name: string
   email: string
-  role: "admin" | "supervisor" | "worker"
+  role: "superadmin" | "manager" | "client" | "worker"
   company_id: string
 }
 
 interface AuthState {
   user: User | null
   token: string | null
-  isLoaded: boolean
+  _hasHydrated: boolean
+  setHasHydrated: (state: boolean) => void
   login: (userData: User, token: string) => void
   logout: () => void
-  setUser: (userData: User | null) => void
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    set => ({
+    (set) => ({
       user: null,
       token: null,
-      isLoaded: false,
+      _hasHydrated: false,
+      setHasHydrated: (state) => {
+        set({ _hasHydrated: state })
+      },
       login: (userData, token) => {
-        localStorage.setItem("paintflow_token", token)
-        localStorage.setItem("paintflow_user", JSON.stringify(userData))
         set({ user: userData, token })
       },
       logout: () => {
-        localStorage.removeItem("paintflow_token")
-        localStorage.removeItem("paintflow_user")
         set({ user: null, token: null })
       },
-      setUser: userData => set({ user: userData }),
     }),
     {
-      name: "paintflow-auth",
+      name: "paintflow-auth", // The key in localStorage
       storage: createJSONStorage(() => localStorage),
-      onRehydrateStorage: () => state => {
-        if (state) {
-          state.isLoaded = true
-        }
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true)
       },
-    },
-  ),
+    }
+  )
 )

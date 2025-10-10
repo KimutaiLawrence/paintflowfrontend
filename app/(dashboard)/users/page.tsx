@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { usersApi } from "@/lib/api"
 import { useAuth } from "@/hooks/use-auth"
@@ -8,19 +9,22 @@ import { PlusCircle } from "lucide-react"
 import { columns } from "./columns"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableSkeleton } from "@/components/shared/data-table-skeleton"
-import { useRouter } from "next/navigation"
+import { CreateUserModal } from "@/components/modals/create-user-modal"
 import { useToast } from "@/hooks/use-toast"
 
 export default function UserManagementPage() {
-  const { user } = useAuth()
-  const router = useRouter()
+  const { canManageUsers, isClient } = useAuth()
   const queryClient = useQueryClient()
   const { toast } = useToast()
+  const [showCreateModal, setShowCreateModal] = useState(false)
+
+  // Allow both managers and clients to view users
+  const canViewUsers = canManageUsers() || isClient()
 
   const { data: usersData, isLoading } = useQuery({
     queryKey: ["users"],
     queryFn: usersApi.getUsers,
-    enabled: user?.role === "admin",
+    enabled: canViewUsers,
   })
 
   const deleteMutation = useMutation({
@@ -29,34 +33,42 @@ export default function UserManagementPage() {
       queryClient.invalidateQueries({ queryKey: ["users"] })
       toast.success("User deleted successfully.")
     },
-    onError: () => {
-      toast.error("Failed to delete user.")
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || "Failed to delete user.")
     },
   })
 
   const users = usersData || []
 
-  if (!user || user.role !== "admin") {
+  if (!canViewUsers) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p>Access Denied. You must be an administrator to view this page.</p>
+        <p>Access Denied. You do not have permission to view users.</p>
       </div>
     )
   }
+
+  // Different titles for different roles
+  const pageTitle = isClient() ? "My Team" : "User Management"
+  const pageDescription = isClient() 
+    ? "View and manage your team members."
+    : "Create, update, and manage user accounts."
 
   return (
     <div className="space-y-4">
        <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">User Management</h2>
+          <h2 className="text-3xl font-bold tracking-tight">{pageTitle}</h2>
           <p className="text-muted-foreground">
-            Create, update, and manage user accounts.
+            {pageDescription}
           </p>
         </div>
-        <Button onClick={() => router.push('/users/create')}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Create User
-        </Button>
+        {canManageUsers() && (
+          <Button onClick={() => setShowCreateModal(true)}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Create User
+          </Button>
+        )}
       </div>
 
       {isLoading ? (
@@ -66,11 +78,20 @@ export default function UserManagementPage() {
           columns={columns}
           data={users}
           filterColumn="full_name"
-          // Pass the delete function to the table
-          // This requires modifying the DataTable and columns to handle actions
-          // For now, we'll keep it simple and add it later if needed.
+          meta={{
+            onDelete: canManageUsers() ? (userId: string) => {
+              if (confirm("Are you sure you want to delete this user?")) {
+                deleteMutation.mutate(userId)
+              }
+            } : undefined
+          }}
         />
       )}
+
+      <CreateUserModal
+        open={showCreateModal}
+        onOpenChange={setShowCreateModal}
+      />
     </div>
   )
 }

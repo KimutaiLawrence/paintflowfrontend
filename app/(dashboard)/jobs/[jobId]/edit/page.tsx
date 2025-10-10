@@ -26,7 +26,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2 } from "lucide-react"
+import { PageLoader, ButtonLoader } from "@/components/ui/custom-loader"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
 
@@ -93,7 +93,7 @@ export default function EditJobPage() {
         address: job.address || "",
         priority: job.priority || "P3",
         description: job.description || "",
-        serial_no: job.serial_no || "",
+        serial_no: job.serial_no ? String(job.serial_no) : "",
         location: job.location || "",
         block_no: job.block_no || "",
         tc: job.tc || "",
@@ -113,8 +113,7 @@ export default function EditJobPage() {
   const updateJobMutation = useMutation({
     mutationFn: (values: z.infer<typeof formSchema>) => jobsApi.updateJob(jobId, values),
     onSuccess: () => {
-      toast({
-        title: "Success",
+      toast.success("Success", {
         description: "Job updated successfully!",
       })
       queryClient.invalidateQueries({ queryKey: ["job", jobId] })
@@ -122,22 +121,23 @@ export default function EditJobPage() {
       router.push(`/jobs/${jobId}`)
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.response?.data?.message || "Failed to update job",
-        variant: "destructive",
+      const errorMessage = error.response?.data?.message || "Failed to update job"
+      toast.error("Error", {
+        description: errorMessage,
       })
     },
   })
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    updateJobMutation.mutate(values)
+    // Remove serial_no from update data since it's auto-generated and shouldn't be changed
+    const { serial_no, ...updateData } = values
+    updateJobMutation.mutate(updateData)
   }
   
   if (isJobLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <PageLoader />
       </div>
     )
   }
@@ -221,8 +221,8 @@ export default function EditJobPage() {
                           <SelectItem value="left_primer">Left Primer</SelectItem>
                           <SelectItem value="left_ultra">Left Ultra</SelectItem>
                           <SelectItem value="left_top_coat_cover_slab">Left Top Coat/Cover Slab</SelectItem>
-                          <SelectItem value="repair_completed">Repair Completed</SelectItem>
-                          <SelectItem value="done">Done</SelectItem>
+                          <SelectItem value="in_review">In Review</SelectItem>
+                          <SelectItem value="approved">Approved</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -260,7 +260,7 @@ export default function EditJobPage() {
                     <FormItem>
                       <FormLabel>Serial No.</FormLabel>
                       <FormControl>
-                        <Input placeholder="Serial number" {...field} />
+                        <Input placeholder="Serial number" {...field} disabled className="bg-muted cursor-not-allowed" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -435,7 +435,7 @@ export default function EditJobPage() {
               <Link href={`/jobs/${jobId}`}>Cancel</Link>
             </Button>
             <Button type="submit" disabled={updateJobMutation.isPending}>
-              {updateJobMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {updateJobMutation.isPending && <ButtonLoader className="mr-2" />}
               Save Changes
             </Button>
           </div>

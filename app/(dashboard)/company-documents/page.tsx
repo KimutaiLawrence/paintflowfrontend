@@ -23,6 +23,7 @@ import { DocumentUploadModal } from "@/components/modals/document-upload-modal"
 import { Card } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { useAuth } from "@/hooks/use-auth"
 
 // Define the structure of a single document
 interface CompanyDocument {
@@ -45,6 +46,7 @@ export default function CompanyDocumentsPage() {
   const [selectedDocId, setSelectedDocId] = React.useState<string | null>(null)
   const queryClient = useQueryClient()
   const { toast } = useToast()
+  const { canManageJobs } = useAuth()
 
   const { data: documents = [], isLoading } = useQuery<CompanyDocument[]>({
     queryKey: ["company-documents"],
@@ -118,10 +120,12 @@ export default function CompanyDocumentsPage() {
               Browse and manage company-wide documents organized by category.
             </p>
           </div>
-          <Button onClick={() => setUploadModalOpen(true)}>
-            <Upload className="mr-2 h-4 w-4" />
-            Upload Document
-          </Button>
+          {canManageJobs() && (
+            <Button onClick={() => setUploadModalOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              Upload Document
+            </Button>
+          )}
         </div>
 
         {isLoading ? (
@@ -136,13 +140,15 @@ export default function CompanyDocumentsPage() {
                 onClick={() => setSelectedCategory(category)}
               />
             ))}
-             <Card
+            {canManageJobs() && (
+              <Card
                 className="flex cursor-pointer flex-col items-center justify-center gap-2 border-2 border-dashed bg-muted/50 p-6 text-muted-foreground transition-colors hover:border-primary/80 hover:bg-muted"
                 onClick={() => setUploadModalOpen(true)}
               >
                 <FolderPlus className="h-8 w-8" />
                 <p className="text-center text-sm font-medium">Create New Folder</p>
               </Card>
+            )}
           </div>
         )}
       </div>
@@ -179,22 +185,24 @@ export default function CompanyDocumentsPage() {
                     >
                       Preview
                     </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        <DropdownMenuItem
-                          onClick={() => openDeleteDialog(doc.id)}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {canManageJobs() && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuItem
+                            onClick={() => openDeleteDialog(doc.id)}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
                 </li>
               ))}

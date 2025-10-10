@@ -18,7 +18,7 @@ import { JobDetail } from "@/lib/api"
 import Link from "next/link"
 
 // Helper function to format dates like Excel (DD-MMM-YY)
-const formatExcelDate = (dateString: string | null) => {
+const formatExcelDate = (dateString: string | null | undefined) => {
   if (!dateString) return ""
   const date = new Date(dateString)
   return date.toLocaleDateString('en-GB', { 
@@ -29,7 +29,7 @@ const formatExcelDate = (dateString: string | null) => {
 }
 
 // Helper function to get status color coding like Excel
-const getStatusColor = (status: string | null) => {
+const getStatusColor = (status: string | null | undefined) => {
   if (!status) return "bg-gray-100 text-gray-800"
   
   switch (status.toLowerCase()) {
@@ -93,7 +93,7 @@ export const mobileColumns: ColumnDef<JobDetail>[] = [
       const colorClass = getStatusColor(status)
       return (
         <div className={`text-xs px-2 py-1 rounded font-medium ${colorClass}`}>
-          {status?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || "Pending"}
+          {status?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || "Pending"}
         </div>
       )
     },
@@ -101,8 +101,10 @@ export const mobileColumns: ColumnDef<JobDetail>[] = [
   {
     id: "actions",
     header: "Actions",
-    cell: ({ row }) => {
+    cell: ({ row, table }) => {
       const job = row.original
+      const meta = table.options.meta as any
+      
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -124,6 +126,13 @@ export const mobileColumns: ColumnDef<JobDetail>[] = [
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href={`/jobs/${job.id}/edit`}>Edit Job</Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-red-600"
+              onClick={() => meta?.onDelete?.(job.id)}
+            >
+              Delete Job
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -217,7 +226,7 @@ export const essentialColumns: ColumnDef<JobDetail>[] = [
       const colorClass = getStatusColor(status)
       return (
         <div className={`text-xs px-2 py-1 rounded font-medium ${colorClass}`}>
-          {status?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || "Pending"}
+          {status?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || "Pending"}
         </div>
       )
     },
@@ -240,8 +249,10 @@ export const essentialColumns: ColumnDef<JobDetail>[] = [
   {
     id: "actions",
     header: "Actions",
-    cell: ({ row }) => {
+    cell: ({ row, table }) => {
       const job = row.original
+      const meta = table.options.meta as any
+      
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -263,6 +274,13 @@ export const essentialColumns: ColumnDef<JobDetail>[] = [
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href={`/jobs/${job.id}/edit`}>Edit Job</Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-red-600"
+              onClick={() => meta?.onDelete?.(job.id)}
+            >
+              Delete Job
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -385,7 +403,7 @@ export const columns: ColumnDef<JobDetail>[] = [
       const colorClass = getStatusColor(status)
       return (
         <div className={`text-xs px-2 py-1 rounded font-medium ${colorClass}`}>
-          {status?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || "Pending"}
+          {status?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || "Pending"}
         </div>
       )
     },

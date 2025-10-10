@@ -23,7 +23,7 @@ import { Label } from '@/components/ui/label'
 interface DocumentUploadModalProps {
   isOpen: boolean
   onClose: () => void
-  onUploadSuccess: () => void
+  onUploadSuccess?: () => void
 }
 
 const docCategories = ["SWP", "SDS", "FPP", "RA", "MS", "ERP", "Other"];
