@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { Plus, FileText, Clock, CheckCircle, AlertTriangle, Users, Shield } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
-import api, { extractArrayData } from "@/lib/api"
+import api from "@/lib/api"
 import VSSChecklistForm from "@/components/forms/vss-checklist-form"
 import WorkAtHeightsForm from "@/components/forms/work-at-heights-form"
 import ToolboxMeetingForm from "@/components/forms/toolbox-meeting-form"
@@ -164,7 +164,7 @@ export default function FormsPage() {
     },
   })
 
-  const forms = extractArrayData(formsResponse || {})
+  const forms = formsResponse?.data || []
 
   const filteredForms = forms.filter((form: any) => {
     if (activeTab === "all") return true
