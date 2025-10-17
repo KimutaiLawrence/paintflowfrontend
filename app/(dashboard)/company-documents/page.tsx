@@ -25,7 +25,7 @@ import {
   Info,
   X
 } from "lucide-react"
-import { WindowsFolderIcon } from "@/components/ui/windows-folder-icon"
+import { StyledFolderIcon } from "@/components/ui/styled-folder-icon"
 import { DocumentUploadModal } from "@/components/modals/document-upload-modal"
 import { Card } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
@@ -48,51 +48,53 @@ interface CompanyDocument {
   created_at: string
 }
 
-// PDF Viewer Component with react-pdf
+// PDF Viewer Component - Direct Cloudinary PDF rendering
 const PDFViewer = ({ url, fileName }: { url: string; fileName: string }) => {
-  const [pageNumber, setPageNumber] = React.useState(1)
-  const [numPages, setNumPages] = React.useState<number | null>(null)
-  const [scale, setScale] = React.useState(1.0)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
 
-  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
-    setNumPages(numPages)
+  // Optimize PDF URL for viewing with Cloudinary transformations
+  const optimizedUrl = React.useMemo(() => {
+    if (url.includes('cloudinary.com')) {
+      // Convert PDF to image format for better preview
+      // URL format: https://res.cloudinary.com/{cloud_name}/{resource_type}/upload/v{version}/{path}
+      const parts = url.split('/upload/')
+      if (parts.length === 2) {
+        // Add transformations: convert to JPG, show first page, optimize quality
+        return `${parts[0]}/upload/pg_1,f_jpg,w_800,q_auto,fl_progressive/${parts[1]}`
+      }
+    }
+    return url
+  }, [url])
+
+  // Handle iframe load
+  const handleLoad = () => {
+    setLoading(false)
+    setError(null)
+  }
+
+  const handleError = () => {
+    setError('Failed to load PDF preview')
     setLoading(false)
   }
-
-  const onDocumentLoadError = (error: Error) => {
-    setError(error.message)
-    setLoading(false)
-  }
-
-  const goToPrevPage = () => {
-    setPageNumber(prev => Math.max(prev - 1, 1))
-  }
-
-  const goToNextPage = () => {
-    setPageNumber(prev => Math.min(prev + 1, numPages || 1))
-  }
-
-  const zoomIn = () => setScale(prev => Math.min(prev + 0.2, 3.0))
-  const zoomOut = () => setScale(prev => Math.max(prev - 0.2, 0.5))
 
   if (error) {
     return (
       <div className="flex items-center justify-center h-96 border rounded-lg bg-muted">
         <div className="text-center">
           <FileIcon className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground mb-2">Failed to load PDF</p>
-          <p className="text-xs text-muted-foreground">{error}</p>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="mt-2"
-            onClick={() => window.open(url, '_blank')}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Download to view
-          </Button>
+          <p className="text-sm text-muted-foreground mb-2">Failed to load PDF preview</p>
+          <p className="text-xs text-muted-foreground mb-4">{error}</p>
+          <div className="flex gap-2 justify-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.open(url, '_blank')}
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              Open in new tab
+            </Button>
+          </div>
         </div>
       </div>
     )
@@ -103,51 +105,65 @@ const PDFViewer = ({ url, fileName }: { url: string; fileName: string }) => {
       {/* PDF Controls */}
       <div className="flex flex-col sm:flex-row items-center justify-between p-3 sm:p-4 border-b bg-muted/50 gap-2">
         <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" onClick={goToPrevPage} disabled={pageNumber <= 1}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <span className="text-sm">
-            Page {pageNumber} of {numPages || '...'}
+          <span className="text-sm text-muted-foreground">
+            PDF Preview - Use browser controls to navigate
           </span>
-          <Button variant="outline" size="sm" onClick={goToNextPage} disabled={pageNumber >= (numPages || 1)}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
         </div>
-        
+
         <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" onClick={zoomOut}>
-            <ZoomOut className="h-4 w-4" />
-          </Button>
-          <span className="text-sm min-w-[60px] text-center">{Math.round(scale * 100)}%</span>
-          <Button variant="outline" size="sm" onClick={zoomIn}>
-            <ZoomIn className="h-4 w-4" />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.open(url, '_blank')}
+          >
+            <Eye className="h-4 w-4 mr-2" />
+            <span className="hidden sm:inline">Open in new tab</span>
+            <span className="sm:hidden">Open</span>
           </Button>
         </div>
       </div>
 
       {/* PDF Content */}
-      <div className="flex justify-center p-2 sm:p-4 bg-gray-50">
+      <div className="flex justify-center p-2 sm:p-4 bg-gray-50 relative min-h-[600px]">
         {loading && (
-          <div className="flex items-center justify-center h-96">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+              <p className="text-sm text-muted-foreground">Loading PDF...</p>
+            </div>
           </div>
         )}
-        <div className={cn("transition-transform w-full", loading && "opacity-0")}>
-          {/* Note: We'll use iframe for now, but can be replaced with react-pdf Document component */}
-          <iframe
-            src={`https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`}
-            className="border rounded-lg shadow-lg w-full"
-            style={{ 
-              width: '100%',
-              height: `${Math.min(600 * scale, window.innerHeight * 0.7)}px`,
-              maxWidth: `${Math.min(800 * scale, window.innerWidth - 32)}px`
+        <div className="w-full">
+          {/* Try image preview first (faster loading) */}
+          <img
+            src={optimizedUrl}
+            alt={`${fileName} preview`}
+            className="border rounded-lg shadow-lg w-full max-w-4xl mx-auto"
+            style={{
+              height: 'auto',
+              maxHeight: '80vh',
+              display: loading ? 'none' : 'block'
             }}
-            title={fileName}
-            onLoad={() => setLoading(false)}
+            onLoad={handleLoad}
             onError={() => {
-              setError('Failed to load PDF preview')
+              // If image preview fails, fall back to iframe
               setLoading(false)
             }}
+          />
+          
+          {/* Fallback iframe for full PDF viewing */}
+          <iframe
+            src={url}
+            className="border rounded-lg shadow-lg w-full"
+            style={{
+              width: '100%',
+              height: '80vh',
+              minHeight: '600px',
+              display: 'none' // Hidden by default, shown if image fails
+            }}
+            title={fileName}
+            onLoad={handleLoad}
+            onError={handleError}
           />
         </div>
       </div>
@@ -408,7 +424,7 @@ const FolderCard = ({
     >
       <div className="flex items-center space-x-3">
         <div className="p-2 bg-primary/10 rounded-lg">
-          <WindowsFolderIcon size={24} />
+          <StyledFolderIcon size={24} />
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="font-medium truncate">{category}</h3>
@@ -463,16 +479,33 @@ export default function CompanyDocumentsPage() {
     }
   }
 
-  const downloadDocument = (doc: CompanyDocument) => {
-    // Use the original Cloudinary URL (which works) and ensure proper filename
-    const fileName = doc.file_name || doc.name
-    const link = document.createElement('a')
-    link.href = doc.cloudinary_url
-    link.download = fileName
-    link.target = '_blank'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+  const downloadDocument = async (doc: CompanyDocument) => {
+    try {
+      // For Cloudinary URLs, add fl_attachment flag to force download
+      let downloadUrl = doc.cloudinary_url
+      
+      if (downloadUrl.includes('cloudinary.com')) {
+        // Add fl_attachment flag to force download instead of preview
+        const parts = downloadUrl.split('/upload/')
+        if (parts.length === 2) {
+          downloadUrl = `${parts[0]}/upload/fl_attachment/${parts[1]}`
+        }
+      }
+
+      // Create a download link directly
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = doc.file_name || doc.name
+      link.target = '_blank' // Open in new tab as fallback
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      toast.success('Download started')
+    } catch (error) {
+      console.error('Download error:', error)
+      toast.error('Failed to download file')
+    }
   }
 
   // Group documents by category
@@ -600,7 +633,7 @@ export default function CompanyDocumentsPage() {
                 }}
                 className="justify-start"
               >
-                <WindowsFolderIcon size={16} />
+                <StyledFolderIcon size={16} />
                 {category} ({docs.length})
               </Button>
             ))}
