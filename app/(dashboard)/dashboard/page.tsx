@@ -1,6 +1,6 @@
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -14,6 +14,26 @@ import { ChartAreaInteractive } from "@/components/chart-area-interactive"
 export default function DashboardPage() {
   const { user, canManageJobs } = useAuth()
 
+  console.log('DashboardPage rendering, user:', !!user)
+
+  // Test if QueryClient is available
+  try {
+    const queryClient = useQueryClient()
+    console.log('QueryClient is available:', !!queryClient)
+  } catch (error) {
+    console.error('QueryClient not available:', error)
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <h3 className="text-lg font-semibold mb-2">Configuration Error</h3>
+          <p className="text-muted-foreground">
+            QueryClient is not available. Please refresh the page.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   const {
     data: metricsResponse,
     isLoading: metricsLoading,
@@ -21,6 +41,7 @@ export default function DashboardPage() {
   } = useQuery({
     queryKey: ["dashboard-metrics"],
     queryFn: async () => {
+      console.log('DashboardPage: Executing dashboard-metrics query')
       const response = await dashboardApi.getMetrics()
       return response.data
     },

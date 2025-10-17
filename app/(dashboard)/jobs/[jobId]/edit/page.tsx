@@ -32,7 +32,6 @@ import Link from "next/link"
 
 const formSchema = z.object({
   title: z.string().min(1, "Job title is required"),
-  address: z.string().min(1, "Address is required"),
   priority: z.string().min(1, "Priority is required"),
   description: z.string().optional(),
   serial_no: z.string().optional(),
@@ -44,10 +43,15 @@ const formSchema = z.object({
   area: z.string().optional(),
   report_date: z.string().optional(),
   inspection_date: z.string().optional(),
-  repair_schedule: z.string().optional(),
-  ultra_schedule: z.string().optional(),
+  repair_schedule_start: z.string().optional(),
+  repair_schedule_end: z.string().optional(),
+  ultra_schedule_start: z.string().optional(),
+  ultra_schedule_end: z.string().optional(),
   repair_completion: z.string().optional(),
   status: z.string().optional(),
+  areas: z.array(z.object({
+    name: z.string().min(1, "Area name is required")
+  })).optional(),
 })
 
 export default function EditJobPage() {
@@ -67,7 +71,6 @@ export default function EditJobPage() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: "",
-      address: "",
       priority: "P3",
       description: "",
       serial_no: "",
@@ -79,10 +82,13 @@ export default function EditJobPage() {
       area: "",
       report_date: "",
       inspection_date: "",
-      repair_schedule: "",
-      ultra_schedule: "",
+      repair_schedule_start: "",
+      repair_schedule_end: "",
+      ultra_schedule_start: "",
+      ultra_schedule_end: "",
       repair_completion: "",
       status: "",
+      areas: [],
     },
   })
   
@@ -90,7 +96,6 @@ export default function EditJobPage() {
     if (job) {
       form.reset({
         title: job.title || "",
-        address: job.address || "",
         priority: job.priority || "P3",
         description: job.description || "",
         serial_no: job.serial_no ? String(job.serial_no) : "",
@@ -102,10 +107,13 @@ export default function EditJobPage() {
         area: job.area || "",
         report_date: job.report_date ? job.report_date.split('T')[0] : "",
         inspection_date: job.inspection_date ? job.inspection_date.split('T')[0] : "",
-        repair_schedule: job.repair_schedule ? job.repair_schedule.split('T')[0] : "",
-        ultra_schedule: job.ultra_schedule ? job.ultra_schedule.split('T')[0] : "",
+        repair_schedule_start: job.repair_schedule_start ? job.repair_schedule_start.split('T')[0] : "",
+        repair_schedule_end: job.repair_schedule_end ? job.repair_schedule_end.split('T')[0] : "",
+        ultra_schedule_start: job.ultra_schedule_start ? job.ultra_schedule_start.split('T')[0] : "",
+        ultra_schedule_end: job.ultra_schedule_end ? job.ultra_schedule_end.split('T')[0] : "",
         repair_completion: job.repair_completion ? job.repair_completion.split('T')[0] : "",
         status: job.status || "",
+        areas: job.areas ? job.areas.map(area => ({ name: area.name })) : [],
       })
     }
   }, [job, form])
@@ -143,12 +151,13 @@ export default function EditJobPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="w-full p-6">
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6" key={job?.id}>
+          {/* Step 1: Basic Information */}
           <Card>
             <CardHeader>
-              <CardTitle>Edit Job Details</CardTitle>
+              <CardTitle>Basic Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <FormField
@@ -156,7 +165,7 @@ export default function EditJobPage() {
                 name="title"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Job Title</FormLabel>
+                    <FormLabel>Job Title *</FormLabel>
                     <FormControl>
                       <Input placeholder="e.g., Repainting works at Block 123" {...field} />
                     </FormControl>
@@ -167,35 +176,36 @@ export default function EditJobPage() {
 
               <FormField
                 control={form.control}
-                name="address"
+                name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Address</FormLabel>
+                    <FormLabel>Description</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Bishan St 22, Block 123" {...field} />
+                      <Textarea placeholder="Add any additional details about the job" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <FormField
                   control={form.control}
                   name="priority"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Priority</FormLabel>
+                      <FormLabel>Priority *</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select a priority" />
+                            <SelectValue placeholder="Select priority" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="P1">P1 (High)</SelectItem>
-                          <SelectItem value="P2">P2 (Medium)</SelectItem>
-                          <SelectItem value="P3">P3 (Low)</SelectItem>
+                          <SelectItem value="P1">P1 - High Priority</SelectItem>
+                          <SelectItem value="P2">P2 - Medium Priority</SelectItem>
+                          <SelectItem value="P3">P3 - Low Priority</SelectItem>
+                          <SelectItem value="blank">- (Blank)</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -230,51 +240,38 @@ export default function EditJobPage() {
                   )}
                 />
               </div>
+            </CardContent>
+          </Card>
 
+          {/* Step 2: Job Details */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Job Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
               <FormField
                 control={form.control}
-                name="description"
+                name="location"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Description (Optional)</FormLabel>
+                    <FormLabel>Location *</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Add any additional details about the job" {...field} />
+                      <Input placeholder="Location" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </CardContent>
-          </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Excel Tracking Fields</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <FormField
                   control={form.control}
-                  name="serial_no"
+                  name="tc"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Serial No.</FormLabel>
+                      <FormLabel>Town Council</FormLabel>
                       <FormControl>
-                        <Input placeholder="Serial number" {...field} disabled className="bg-muted cursor-not-allowed" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="location"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Location</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Location" {...field} />
+                        <Input placeholder="Town Council" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -289,22 +286,6 @@ export default function EditJobPage() {
                       <FormLabel>Block No.</FormLabel>
                       <FormControl>
                         <Input placeholder="Block number" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid md:grid-cols-3 gap-4">
-                <FormField
-                  control={form.control}
-                  name="tc"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>TC (Town Council)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="TC" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -347,14 +328,75 @@ export default function EditJobPage() {
                   <FormItem>
                     <FormLabel>Area</FormLabel>
                     <FormControl>
-                      <Input placeholder="Area description" {...field} />
+                      <Input placeholder="Area" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <div className="grid md:grid-cols-2 gap-4">
+              {/* Job Areas */}
+              <FormField
+                control={form.control}
+                name="areas"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Job Areas</FormLabel>
+                    <FormControl>
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {field.value?.map((area, index) => (
+                            <div key={index} className="flex gap-2">
+                              <Input
+                                value={area.name}
+                                onChange={(e) => {
+                                  const newAreas = [...(field.value || [])]
+                                  newAreas[index] = { ...area, name: e.target.value }
+                                  field.onChange(newAreas)
+                                }}
+                                placeholder="Area name"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={() => {
+                                  const newAreas = field.value?.filter((_, i) => i !== index) || []
+                                  field.onChange(newAreas)
+                                }}
+                              >
+                                ×
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            const newAreas = [...(field.value || []), { name: "" }]
+                            field.onChange(newAreas)
+                          }}
+                          className="w-full"
+                        >
+                          Add Area
+                        </Button>
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Step 3: Schedule & Dates */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Schedule & Dates</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
                   name="report_date"
@@ -374,23 +416,7 @@ export default function EditJobPage() {
                   name="inspection_date"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Inspection Date</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="repair_schedule"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Repair Schedule</FormLabel>
+                      <FormLabel>Inspection Date *</FormLabel>
                       <FormControl>
                         <Input type="date" {...field} />
                       </FormControl>
@@ -401,10 +427,10 @@ export default function EditJobPage() {
 
                 <FormField
                   control={form.control}
-                  name="ultra_schedule"
+                  name="repair_completion"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Ultra Schedule</FormLabel>
+                      <FormLabel>Repair Completion</FormLabel>
                       <FormControl>
                         <Input type="date" {...field} />
                       </FormControl>
@@ -414,19 +440,73 @@ export default function EditJobPage() {
                 />
               </div>
 
-              <FormField
-                control={form.control}
-                name="repair_completion"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Repair Completion</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div>
+                  <h4 className="text-sm font-medium mb-4">Repair Schedule</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="repair_schedule_start"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Start Date *</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="repair_schedule_end"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>End Date *</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-medium mb-4">Ultra Schedule</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="ultra_schedule_start"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Start Date</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="ultra_schedule_end"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>End Date</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
           

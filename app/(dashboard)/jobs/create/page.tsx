@@ -6,7 +6,7 @@ import { useForm, useFieldArray } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { jobsApi, locationsApi, townCouncilsApi, jobTitlesApi, type Location, type TownCouncil, type JobTitle } from "@/lib/api"
+import { jobsApi, locationsApi, townCouncilsApi, jobTitlesApi, jobAreasApi, type Location, type TownCouncil, type JobTitle, type JobArea } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -29,6 +29,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { VerticalStepper } from "@/components/ui/vertical-stepper"
 import { Combobox } from "@/components/ui/combobox"
+import { DateRangeFields } from "@/components/ui/date-range-input"
 import { ArrowLeft, ArrowRight } from "lucide-react"
 import { ButtonLoader } from "@/components/ui/custom-loader"
 import { useToast } from "@/hooks/use-toast"
@@ -51,7 +52,7 @@ const formSchema = z.object({
   job_title_id: z.string().optional(),
   title: z.string().min(1, "Job title is required"),
   description: z.string().optional(),
-  priority: z.enum(["P1", "P2", "P3"]).default("P3"),
+  priority: z.enum(["P1", "P2", "P3", "blank"]).default("P3"),
   
   // Step 2: Job Details
   location_id: z.string().optional(),
@@ -62,13 +63,15 @@ const formSchema = z.object({
   block_no: z.string().min(1, "Block number is required"),
   unit_no: z.string().min(1, "Unit number is required"),
   resident_number: z.string().min(1, "Resident number is required"),
-  area: z.string().min(1, "Area is required"),
+  area: z.string().min(1, "Main area is required"),
   
   // Step 3: Schedule & Dates
   report_date: z.string(),
   inspection_date: z.string().min(1, "Inspection date is required"),
-  repair_schedule: z.string().min(1, "Repair schedule is required"),
-  ultra_schedule: z.string(),
+  repair_schedule_start: z.string().min(1, "Repair schedule start is required"),
+  repair_schedule_end: z.string().min(1, "Repair schedule end is required"),
+  ultra_schedule_start: z.string().optional(),
+  ultra_schedule_end: z.string().optional(),
   repair_completion: z.string().optional(),
   
   // Areas
@@ -115,6 +118,18 @@ export default function CreateJobPage() {
   })
   const townCouncils = townCouncilsData?.data || []
 
+  const { data: predefinedAreasData } = useQuery({
+    queryKey: ["predefinedAreas"],
+    queryFn: () => jobsApi.getPredefinedAreas(),
+  })
+  const predefinedAreas = predefinedAreasData?.areas || []
+
+  const { data: jobAreasData } = useQuery({
+    queryKey: ["jobAreas"],
+    queryFn: () => jobAreasApi.getJobAreas({ per_page: 100 }),
+  })
+  const jobAreas = jobAreasData?.data || []
+
   // Auto-fill report_date with today
   const today = new Date().toISOString().split("T")[0]
 
@@ -136,8 +151,10 @@ export default function CreateJobPage() {
       area: "",
       report_date: today, // Auto-filled
       inspection_date: "",
-      repair_schedule: "",
-      ultra_schedule: "",
+      repair_schedule_start: "",
+      repair_schedule_end: "",
+      ultra_schedule_start: "",
+      ultra_schedule_end: "",
       repair_completion: "",
       areas: [{ name: "" }],
     },
@@ -160,14 +177,30 @@ export default function CreateJobPage() {
   }, [defaultJobTitle, form])
 
   // Auto-calculate ultra_schedule when repair_schedule changes
-  const repairSchedule = form.watch("repair_schedule")
+  const repairScheduleStart = form.watch("repair_schedule_start")
+  const repairScheduleEnd = form.watch("repair_schedule_end")
+  
   useEffect(() => {
-    if (repairSchedule) {
-      const repairDate = new Date(repairSchedule)
-      repairDate.setDate(repairDate.getDate() + 7) // Add 7 days
-      form.setValue("ultra_schedule", repairDate.toISOString().split("T")[0])
+    if (repairScheduleStart) {
+      const repairStartDate = new Date(repairScheduleStart)
+      const repairEndDate = new Date(repairStartDate)
+      repairEndDate.setDate(repairEndDate.getDate() + 7) // Add 7 days for end date
+      
+      // Set repair schedule end if not already set
+      if (!repairScheduleEnd) {
+        form.setValue("repair_schedule_end", repairEndDate.toISOString().split("T")[0])
+      }
+      
+      // Auto-calculate ultra schedule (7 days after repair schedule end)
+      const ultraStartDate = new Date(repairEndDate)
+      ultraStartDate.setDate(ultraStartDate.getDate() + 1) // Start day after repair ends
+      const ultraEndDate = new Date(ultraStartDate)
+      ultraEndDate.setDate(ultraEndDate.getDate() + 7) // 7-day range for ultra
+      
+      form.setValue("ultra_schedule_start", ultraStartDate.toISOString().split("T")[0])
+      form.setValue("ultra_schedule_end", ultraEndDate.toISOString().split("T")[0])
     }
-  }, [repairSchedule, form])
+  }, [repairScheduleStart, repairScheduleEnd, form])
 
   const createMutation = useMutation({
     mutationFn: (data: FormData) => jobsApi.createJob(data),
@@ -200,6 +233,18 @@ export default function CreateJobPage() {
     },
   })
 
+  const createJobAreaMutation = useMutation({
+    mutationFn: (data: { name: string; description?: string }) => jobAreasApi.createJobArea(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jobAreas"] })
+      toast.success("Success", { description: "Job area created successfully" })
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.message || error.message || "Failed to create job area"
+      toast.error("Error", { description: errorMessage })
+    },
+  })
+
   const handleCreateJobTitle = () => {
     if (!newJobTitleData.title.trim()) {
       toast.error("Error", { description: "Job title is required" })
@@ -220,7 +265,7 @@ export default function CreateJobPage() {
     } else if (currentStep === 1) {
       fieldsToValidate = ["location", "tc", "block_no", "unit_no", "resident_number", "area"]
     } else if (currentStep === 2) {
-      fieldsToValidate = ["inspection_date", "repair_schedule"]
+      fieldsToValidate = ["inspection_date", "repair_schedule_start", "repair_schedule_end"]
     }
 
     const result = await form.trigger(fieldsToValidate)
@@ -359,6 +404,7 @@ export default function CreateJobPage() {
                                 <SelectItem value="P1">P1 - High Priority</SelectItem>
                                 <SelectItem value="P2">P2 - Medium Priority</SelectItem>
                                 <SelectItem value="P3">P3 - Low Priority</SelectItem>
+                                <SelectItem value="blank">- (Blank)</SelectItem>
                               </SelectContent>
                             </Select>
                             <FormMessage />
@@ -529,10 +575,13 @@ export default function CreateJobPage() {
                         name="area"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Area *</FormLabel>
+                            <FormLabel>Main Area *</FormLabel>
                             <FormControl>
-                              <Input placeholder="e.g., Living Room & Kitchen" {...field} />
+                              <Input placeholder="e.g., Sydney Apartments, 123 Main Street" {...field} />
                             </FormControl>
+                            <FormDescription>
+                              Main location/address where the job is taking place
+                            </FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -541,7 +590,10 @@ export default function CreateJobPage() {
                       {/* Job Areas */}
                       <div className="space-y-4 pt-4 border-t">
                         <div className="flex items-center justify-between">
-                          <label className="text-sm font-medium">Job Areas *</label>
+                          <div>
+                            <label className="text-sm font-medium">Job Areas *</label>
+                            <p className="text-xs text-gray-500">Select specific rooms/spaces within the main area</p>
+                          </div>
                           <Button
                             type="button"
                             variant="outline"
@@ -559,7 +611,29 @@ export default function CreateJobPage() {
                               render={({ field }) => (
                                 <FormItem className="flex-1">
                                   <FormControl>
-                                    <Input placeholder="Area name" {...field} />
+                                    <Combobox
+                                      options={jobAreas.map((area: JobArea) => ({
+                                        value: area.name,
+                                        label: area.name,
+                                      }))}
+                                      value={field.value}
+                                      onSelect={(value) => {
+                                        field.onChange(value)
+                                      }}
+                                      onCustomValue={async (value) => {
+                                        try {
+                                          await createJobAreaMutation.mutateAsync({ name: value })
+                                          field.onChange(value)
+                                        } catch (error) {
+                                          // If creation fails, still set the value
+                                          field.onChange(value)
+                                        }
+                                      }}
+                                      placeholder="Select or type area name (e.g., Kitchen, Master Bedroom)"
+                                      searchPlaceholder="Search job areas..."
+                                      emptyText="No job area found."
+                                      allowCustom={true}
+                                    />
                                   </FormControl>
                                   <FormMessage />
                                 </FormItem>
@@ -615,36 +689,82 @@ export default function CreateJobPage() {
                         )}
                       />
 
+                      <div className="space-y-4">
+                        <div>
+                          <h4 className="text-sm font-medium mb-3">Repair Schedule *</h4>
+                          <DateRangeFields
+                            startDate={(() => {
+                              const start = form.watch("repair_schedule_start")
+                              return start ? new Date(start) : undefined
+                            })()}
+                            endDate={(() => {
+                              const end = form.watch("repair_schedule_end")
+                              return end ? new Date(end) : undefined
+                            })()}
+                            onStartDateChange={(date) => {
+                              form.setValue("repair_schedule_start", date ? date.toISOString().split("T")[0] : "")
+                            }}
+                            onEndDateChange={(date) => {
+                              form.setValue("repair_schedule_end", date ? date.toISOString().split("T")[0] : "")
+                            }}
+                            startLabel="Repair Start Date"
+                            endLabel="Repair End Date"
+                          />
+                          <FormField
+                            control={form.control}
+                            name="repair_schedule_start"
+                            render={({ field }) => (
+                              <FormMessage />
+                            )}
+                          />
                       <FormField
                         control={form.control}
-                        name="repair_schedule"
+                            name="repair_schedule_end"
                         render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Repair Schedule *</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} />
-                            </FormControl>
                             <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                            )}
+                          />
+                        </div>
 
+                        <div>
+                          <h4 className="text-sm font-medium mb-3">Ultra Schedule</h4>
+                          <DateRangeFields
+                            startDate={(() => {
+                              const start = form.watch("ultra_schedule_start")
+                              return start ? new Date(start) : undefined
+                            })()}
+                            endDate={(() => {
+                              const end = form.watch("ultra_schedule_end")
+                              return end ? new Date(end) : undefined
+                            })()}
+                            onStartDateChange={(date) => {
+                              form.setValue("ultra_schedule_start", date ? date.toISOString().split("T")[0] : "")
+                            }}
+                            onEndDateChange={(date) => {
+                              form.setValue("ultra_schedule_end", date ? date.toISOString().split("T")[0] : "")
+                            }}
+                            startLabel="Ultra Start Date"
+                            endLabel="Ultra End Date"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Auto-calculated based on repair schedule, but can be manually adjusted
+                          </p>
+                          <FormField
+                            control={form.control}
+                            name="ultra_schedule_start"
+                            render={({ field }) => (
+                              <FormMessage />
+                            )}
+                          />
                       <FormField
                         control={form.control}
-                        name="ultra_schedule"
+                            name="ultra_schedule_end"
                         render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Ultra Schedule</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} disabled />
-                            </FormControl>
-                            <FormDescription>
-                              Auto-calculated as Repair Schedule + 7 days
-                            </FormDescription>
                             <FormMessage />
-                          </FormItem>
                         )}
                       />
+                        </div>
+                      </div>
 
                       <FormField
                         control={form.control}
@@ -672,22 +792,26 @@ export default function CreateJobPage() {
                   onClick={prevStep}
                   disabled={currentStep === 0}
                 >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Previous
+                  <span className="flex items-center">
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Previous
+                  </span>
                 </Button>
 
                 {currentStep < steps.length - 1 ? (
                   <Button type="button" onClick={nextStep}>
-                    Next
-                    <ArrowRight className="ml-2 h-4 w-4" />
+                    <span className="flex items-center">
+                      Next
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </span>
                   </Button>
                 ) : (
                   <Button type="submit" disabled={createMutation.isPending}>
                     {createMutation.isPending ? (
-                      <>
-                        <ButtonLoader />
+                      <span className="flex items-center">
+                        <ButtonLoader className="mr-2" />
                         Creating...
-                      </>
+                      </span>
                     ) : (
                       "Create Job"
                     )}
@@ -737,7 +861,14 @@ export default function CreateJobPage() {
               onClick={handleCreateJobTitle} 
               disabled={!newJobTitleData.title.trim() || createJobTitleMutation.isPending}
             >
-              {createJobTitleMutation.isPending ? "Creating..." : "Create"}
+              {createJobTitleMutation.isPending ? (
+                <span className="flex items-center">
+                  <ButtonLoader className="mr-2" />
+                  Creating...
+                </span>
+              ) : (
+                "Create"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

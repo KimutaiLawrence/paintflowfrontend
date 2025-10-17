@@ -8,7 +8,7 @@ export const loginSchema = z.object({
 export const jobCreationSchema = z.object({
   title: z.string().min(1, "Job title is required"),
   address: z.string().min(1, "Address is required"),
-  priority: z.enum(["P1", "P2", "P3"]).default("P3"),
+  priority: z.enum(["P1", "P2", "P3", "blank"]).default("P3"),
   areas: z
     .array(
       z.object({

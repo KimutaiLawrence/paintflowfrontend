@@ -76,11 +76,12 @@ export const mobileColumns: ColumnDef<JobDetail>[] = [
       const priorityStyles = {
         P1: "bg-red-100 text-red-800 border-red-200 font-bold",
         P2: "bg-orange-100 text-orange-800 border-orange-200 font-bold", 
-        P3: "bg-yellow-100 text-yellow-800 border-yellow-200 font-bold"
+        P3: "bg-yellow-100 text-yellow-800 border-yellow-200 font-bold",
+        blank: "bg-gray-100 text-gray-600 border-gray-200"
       }
       return (
         <div className={`text-xs px-2 py-1 rounded border ${priorityStyles[priority as keyof typeof priorityStyles] || "bg-gray-100 text-gray-800"}`}>
-          {priority}
+          {priority === "blank" ? "-" : priority}
         </div>
       )
     },
@@ -208,11 +209,12 @@ export const essentialColumns: ColumnDef<JobDetail>[] = [
       const priorityStyles = {
         P1: "bg-red-100 text-red-800 border-red-200 font-bold",
         P2: "bg-orange-100 text-orange-800 border-orange-200 font-bold", 
-        P3: "bg-yellow-100 text-yellow-800 border-yellow-200 font-bold"
+        P3: "bg-yellow-100 text-yellow-800 border-yellow-200 font-bold",
+        blank: "bg-gray-100 text-gray-600 border-gray-200"
       }
       return (
         <div className={`text-xs px-2 py-1 rounded border ${priorityStyles[priority as keyof typeof priorityStyles] || "bg-gray-100 text-gray-800"}`}>
-          {priority}
+          {priority === "blank" ? "-" : priority}
         </div>
       )
     },
@@ -385,11 +387,12 @@ export const columns: ColumnDef<JobDetail>[] = [
       const priorityStyles = {
         P1: "bg-red-100 text-red-800 border-red-200 font-bold",
         P2: "bg-orange-100 text-orange-800 border-orange-200 font-bold", 
-        P3: "bg-yellow-100 text-yellow-800 border-yellow-200 font-bold"
+        P3: "bg-yellow-100 text-yellow-800 border-yellow-200 font-bold",
+        blank: "bg-gray-100 text-gray-600 border-gray-200"
       }
       return (
         <div className={`text-xs px-2 py-1 rounded border ${priorityStyles[priority as keyof typeof priorityStyles] || "bg-gray-100 text-gray-800"}`}>
-          {priority}
+          {priority === "blank" ? "-" : priority}
         </div>
       )
     },

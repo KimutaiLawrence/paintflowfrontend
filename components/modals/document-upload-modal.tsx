@@ -12,7 +12,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { companyDocumentsApi } from '@/lib/api'
 import { UploadCloud, File, X } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
@@ -34,44 +34,54 @@ export function DocumentUploadModal({ isOpen, onClose, onUploadSuccess }: Docume
   const [docName, setDocName] = useState("")
   const [docDescription, setDocDescription] = useState("")
   const { toast } = useToast()
-  const queryClient = useQueryClient()
+  
+  // Note: QueryClient invalidation will be handled by the parent component
 
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    setFiles([acceptedFiles[0]]) // Only allow one file
-    setDocName(acceptedFiles[0].name.replace(/\.[^/.]+$/, "")) // Pre-fill name without extension
-  }, [])
+    setFiles(prevFiles => [...prevFiles, ...acceptedFiles]) // Allow multiple files
+    if (acceptedFiles.length > 0 && files.length === 0) {
+      setDocName(acceptedFiles[0].name.replace(/\.[^/.]+$/, "")) // Pre-fill name from first file
+    }
+  }, [files.length])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
       'application/pdf': ['.pdf'],
       'application/msword': ['.doc', '.docx'],
-      'image/*': ['.jpeg', '.jpg', '.png'],
-    }
+      'image/*': ['.jpeg', '.jpg', '.png', '.gif'],
+    },
+    maxFiles: 10, // Allow up to 10 files
+    multiple: true,
   })
 
   const removeFile = (file: File) => {
     setFiles(prevFiles => prevFiles.filter(f => f !== file))
   }
 
-  const uploadMutation = useMutation({
-    mutationFn: (variables: { file: File, name: string, description: string, category: string }) => 
-      companyDocumentsApi.uploadDocument(variables.file, variables.name, variables.description, variables.category),
-    onSuccess: () => {
-      toast.success("Document uploaded successfully!")
-      queryClient.invalidateQueries({ queryKey: ["company-documents"] })
-      handleClose()
-    },
-    onError: () => {
-      toast.error("Failed to upload document. Please try again.")
-    },
-  })
 
-  const handleUpload = () => {
-    if (files.length > 0 && category && docName) {
-      const file = files[0]
-      uploadMutation.mutate({ file, name: docName, description: docDescription, category })
+  const handleUpload = async () => {
+    if (files.length > 0 && category) {
+      try {
+        // Upload each file
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i]
+          const name = i === 0 ? docName : file.name.replace(/\.[^/.]+$/, "")
+          const description = i === 0 ? docDescription : `Uploaded document: ${file.name}`
+          
+          await companyDocumentsApi.uploadDocument(file, name, description, category)
+        }
+        
+        toast.success(`${files.length} document(s) uploaded successfully!`)
+        handleClose()
+        // Notify parent component to refresh the documents list
+        if (onUploadSuccess) {
+          onUploadSuccess()
+        }
+      } catch (error) {
+        toast.error("Failed to upload documents. Please try again.")
+      }
     }
   }
 
@@ -111,8 +121,8 @@ export function DocumentUploadModal({ isOpen, onClose, onUploadSuccess }: Docume
 
           {files.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-sm font-medium">Selected File:</h4>
-              <div className="space-y-2">
+              <h4 className="text-sm font-medium">Selected Files ({files.length}):</h4>
+              <div className="space-y-2 max-h-32 overflow-y-auto">
                 {files.map((file, i) => (
                   <div key={i} className="flex items-center justify-between rounded-md border bg-muted/50 p-2">
                     <div className="flex items-center gap-2">
@@ -132,7 +142,7 @@ export function DocumentUploadModal({ isOpen, onClose, onUploadSuccess }: Docume
           {files.length > 0 && (
             <>
               <div className="grid w-full items-center gap-1.5">
-                <Label htmlFor="docName">Document Name</Label>
+                <Label htmlFor="docName">Document Name (for first file)</Label>
                 <Input
                   id="docName"
                   type="text"
@@ -150,6 +160,11 @@ export function DocumentUploadModal({ isOpen, onClose, onUploadSuccess }: Docume
                   onChange={(e) => setDocDescription(e.target.value)}
                 />
               </div>
+              {files.length > 1 && (
+                <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
+                  <p>Additional files will use their original names and auto-generated descriptions.</p>
+                </div>
+              )}
             </>
           )}
 
@@ -164,11 +179,8 @@ export function DocumentUploadModal({ isOpen, onClose, onUploadSuccess }: Docume
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>Cancel</Button>
-          <Button onClick={handleUpload} disabled={files.length === 0 || !category || !docName || uploadMutation.isPending}>
-            {uploadMutation.isPending && (
-              <span className="animate-spin mr-2">...</span>
-            )}
-            Upload Document
+          <Button onClick={handleUpload} disabled={files.length === 0 || !category || !docName}>
+            Upload {files.length > 1 ? `${files.length} Documents` : 'Document'}
           </Button>
         </DialogFooter>
       </DialogContent>

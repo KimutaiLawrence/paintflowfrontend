@@ -116,6 +116,10 @@ const getNavData = (user: any) => {
           title: "Job Titles",
           url: "/job-titles",
         },
+        {
+          title: "Job Areas",
+          url: "/job-areas",
+        },
       ],
     })
   }
@@ -155,7 +159,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const teamData = [
     {
       name: "AS United PTE LTD",
-      logo: Package2,
+      logo: "/ASUlogo.png",
       plan: "Enterprise",
     },
   ]

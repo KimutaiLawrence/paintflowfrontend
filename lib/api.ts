@@ -93,6 +93,16 @@ export interface JobTitle {
   updated_at?: string
 }
 
+// Job Area type
+export interface JobArea {
+  id: string
+  name: string
+  description?: string
+  is_predefined: boolean
+  created_at?: string
+  updated_at?: string
+}
+
 // Job Detail type
 export interface JobDetail {
   id: string
@@ -134,6 +144,18 @@ export const jobsApi = {
   updateJob: (id: string, data: any) =>
     api.put<JobDetail>(`/jobs/${id}`, data).then(res => res.data),
   deleteJob: (id: string) => api.delete<ApiResponse<any>>(`/jobs/${id}`).then(res => res.data),
+  getPredefinedAreas: () => api.get<{areas: string[]}>("/jobs/predefined-areas").then(res => res.data),
+}
+
+export const jobAreasApi = {
+  getJobAreas: (params?: { page?: number; per_page?: number; search?: string }) => 
+    api.get<PaginatedResponse<JobArea>>("/jobs/predefined-areas", { params }).then(res => res.data),
+  getJobArea: (areaId: string) => api.get<JobArea>(`/jobs/predefined-areas/${areaId}`).then(res => res.data),
+  createJobArea: (areaData: { name: string; description?: string }) => 
+    api.post<JobArea>("/jobs/predefined-areas", areaData).then(res => res.data),
+  updateJobArea: (areaId: string, areaData: { name: string; description?: string }) => 
+    api.put<JobArea>(`/jobs/predefined-areas/${areaId}`, areaData).then(res => res.data),
+  deleteJobArea: (areaId: string) => api.delete(`/jobs/predefined-areas/${areaId}`).then(res => res.data),
 }
 
 export const dashboardApi = {

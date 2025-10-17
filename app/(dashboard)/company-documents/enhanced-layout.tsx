@@ -20,12 +20,11 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCw,
-  Printer,
+  Print,
   Share,
   Info,
   X
 } from "lucide-react"
-import { WindowsFolderIcon } from "@/components/ui/windows-folder-icon"
 import { DocumentUploadModal } from "@/components/modals/document-upload-modal"
 import { Card } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
@@ -34,6 +33,13 @@ import { useAuth } from "@/hooks/use-auth"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import { Input } from "@/components/ui/input"
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 
 // Define the structure of a single document
@@ -101,7 +107,7 @@ const PDFViewer = ({ url, fileName }: { url: string; fileName: string }) => {
   return (
     <div className="w-full">
       {/* PDF Controls */}
-      <div className="flex flex-col sm:flex-row items-center justify-between p-3 sm:p-4 border-b bg-muted/50 gap-2">
+      <div className="flex items-center justify-between p-4 border-b bg-muted/50">
         <div className="flex items-center space-x-2">
           <Button variant="outline" size="sm" onClick={goToPrevPage} disabled={pageNumber <= 1}>
             <ChevronLeft className="h-4 w-4" />
@@ -126,28 +132,24 @@ const PDFViewer = ({ url, fileName }: { url: string; fileName: string }) => {
       </div>
 
       {/* PDF Content */}
-      <div className="flex justify-center p-2 sm:p-4 bg-gray-50">
+      <div className="flex justify-center p-4 bg-gray-50">
         {loading && (
           <div className="flex items-center justify-center h-96">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
         )}
-        <div className={cn("transition-transform w-full", loading && "opacity-0")}>
+        <div className={cn("transition-transform", loading && "opacity-0")}>
           {/* Note: We'll use iframe for now, but can be replaced with react-pdf Document component */}
           <iframe
-            src={`https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`}
-            className="border rounded-lg shadow-lg w-full"
+            src={url}
+            className="border rounded-lg shadow-lg"
             style={{ 
-              width: '100%',
-              height: `${Math.min(600 * scale, window.innerHeight * 0.7)}px`,
-              maxWidth: `${Math.min(800 * scale, window.innerWidth - 32)}px`
+              width: `${800 * scale}px`, 
+              height: `${600 * scale}px`,
+              transform: `scale(${scale})`,
+              transformOrigin: 'top center'
             }}
             title={fileName}
-            onLoad={() => setLoading(false)}
-            onError={() => {
-              setError('Failed to load PDF preview')
-              setLoading(false)
-            }}
           />
         </div>
       </div>
@@ -214,9 +216,9 @@ const ImageViewer = ({ url, fileName }: { url: string; fileName: string }) => {
       </div>
 
       {/* Image Content */}
-      <div className="flex justify-center p-2 sm:p-4 bg-gray-50 overflow-hidden">
+      <div className="flex justify-center p-4 bg-gray-50 overflow-hidden">
         <div 
-          className="cursor-grab active:cursor-grabbing w-full flex justify-center"
+          className="cursor-grab active:cursor-grabbing"
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -225,7 +227,7 @@ const ImageViewer = ({ url, fileName }: { url: string; fileName: string }) => {
           <img
             src={url}
             alt={fileName}
-            className="max-w-full max-h-[60vh] sm:max-h-[70vh] object-contain shadow-lg rounded-lg"
+            className="max-w-full max-h-[70vh] object-contain shadow-lg rounded-lg"
             style={{
               transform: `scale(${scale}) rotate(${rotation}deg) translate(${position.x}px, ${position.y}px)`,
               transition: isDragging ? 'none' : 'transform 0.2s ease'
@@ -311,8 +313,7 @@ const DocumentToolbar = ({
   onPrevious, 
   onNext, 
   hasPrevious, 
-  hasNext,
-  onBack
+  hasNext 
 }: {
   document: CompanyDocument
   onDownload: () => void
@@ -321,65 +322,38 @@ const DocumentToolbar = ({
   onNext: () => void
   hasPrevious: boolean
   hasNext: boolean
-  onBack?: () => void
 }) => {
   const [showMetadata, setShowMetadata] = React.useState(false)
 
   return (
     <div className="flex items-center justify-between p-4 border-b bg-background">
       <div className="flex items-center space-x-2">
-        {onBack && (
-          <Button variant="outline" size="sm" onClick={onBack} className="lg:hidden">
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Back
-          </Button>
-        )}
-        <Button variant="outline" size="sm" onClick={onPrevious} disabled={!hasPrevious} className="hidden sm:flex">
+        <Button variant="outline" size="sm" onClick={onPrevious} disabled={!hasPrevious}>
           <ChevronLeft className="h-4 w-4 mr-1" />
           Previous
         </Button>
-        <Button variant="outline" size="sm" onClick={onNext} disabled={!hasNext} className="hidden sm:flex">
+        <Button variant="outline" size="sm" onClick={onNext} disabled={!hasNext}>
           Next
           <ChevronRight className="h-4 w-4 ml-1" />
         </Button>
-        <div className="flex sm:hidden">
-          <Button variant="outline" size="sm" onClick={onPrevious} disabled={!hasPrevious}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="sm" onClick={onNext} disabled={!hasNext}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
       </div>
 
-      <div className="flex items-center space-x-1 sm:space-x-2">
-        <Button variant="outline" size="sm" onClick={onDownload} className="hidden sm:flex">
+      <div className="flex items-center space-x-2">
+        <Button variant="outline" size="sm" onClick={onDownload}>
           <Download className="h-4 w-4 mr-2" />
           Download
         </Button>
-        <Button variant="outline" size="sm" onClick={onDownload} className="sm:hidden">
-          <Download className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => window.print()} className="hidden sm:flex">
-          <Printer className="h-4 w-4 mr-2" />
+        <Button variant="outline" size="sm" onClick={() => window.print()}>
+          <Print className="h-4 w-4 mr-2" />
           Print
         </Button>
-        <Button variant="outline" size="sm" onClick={() => window.print()} className="sm:hidden">
-          <Printer className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => setShowMetadata(!showMetadata)} className="hidden sm:flex">
+        <Button variant="outline" size="sm" onClick={() => setShowMetadata(!showMetadata)}>
           <Info className="h-4 w-4 mr-2" />
           Info
         </Button>
-        <Button variant="outline" size="sm" onClick={() => setShowMetadata(!showMetadata)} className="sm:hidden">
-          <Info className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="sm" onClick={onDelete} className="hidden sm:flex">
+        <Button variant="outline" size="sm" onClick={onDelete}>
           <Trash2 className="h-4 w-4 mr-2" />
           Delete
-        </Button>
-        <Button variant="outline" size="sm" onClick={onDelete} className="sm:hidden">
-          <Trash2 className="h-4 w-4" />
         </Button>
       </div>
     </div>
@@ -408,7 +382,7 @@ const FolderCard = ({
     >
       <div className="flex items-center space-x-3">
         <div className="p-2 bg-primary/10 rounded-lg">
-          <WindowsFolderIcon size={24} />
+          <FileText className="h-6 w-6 text-primary" />
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="font-medium truncate">{category}</h3>
@@ -419,7 +393,7 @@ const FolderCard = ({
   )
 }
 
-export default function CompanyDocumentsPage() {
+export default function EnhancedCompanyDocumentsLayout() {
   const [isUploadModalOpen, setUploadModalOpen] = React.useState(false)
   const [selectedCategory, setSelectedCategory] = React.useState<string | null>(null)
   const [selectedDocument, setSelectedDocument] = React.useState<CompanyDocument | null>(null)
@@ -464,11 +438,9 @@ export default function CompanyDocumentsPage() {
   }
 
   const downloadDocument = (doc: CompanyDocument) => {
-    // Use the original Cloudinary URL (which works) and ensure proper filename
-    const fileName = doc.file_name || doc.name
     const link = document.createElement('a')
     link.href = doc.cloudinary_url
-    link.download = fileName
+    link.download = doc.file_name
     link.target = '_blank'
     document.body.appendChild(link)
     link.click()
@@ -515,9 +487,6 @@ export default function CompanyDocumentsPage() {
       <DocumentUploadModal
         isOpen={isUploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
-        onUploadSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ["company-documents"] })
-        }}
       />
       <ConfirmDialog
         isOpen={isConfirmOpen}
@@ -530,7 +499,7 @@ export default function CompanyDocumentsPage() {
 
       <div className="flex h-[calc(100vh-4rem)]">
         {/* Sidebar */}
-        <div className="w-80 border-r bg-muted/30 flex flex-col hidden lg:flex">
+        <div className="w-80 border-r bg-muted/30 flex flex-col">
           <div className="p-6 border-b">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold">Company Documents</h2>
@@ -577,36 +546,6 @@ export default function CompanyDocumentsPage() {
           </ScrollArea>
         </div>
 
-        {/* Mobile Category Selector */}
-        <div className="lg:hidden p-4 border-b bg-muted/30">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold">Company Documents</h2>
-            {canManageJobs() && (
-              <Button onClick={() => setUploadModalOpen(true)} size="sm">
-                <Upload className="h-4 w-4 mr-2" />
-                Upload
-              </Button>
-            )}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {Object.entries(documentsByCategory).map(([category, docs]) => (
-              <Button
-                key={category}
-                variant={selectedCategory === category ? "default" : "outline"}
-                size="sm"
-                onClick={() => {
-                  setSelectedCategory(category)
-                  setSelectedDocument(null)
-                }}
-                className="justify-start"
-              >
-                <WindowsFolderIcon size={16} />
-                {category} ({docs.length})
-              </Button>
-            ))}
-          </div>
-        </div>
-
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col">
           {selectedCategory && (
@@ -619,7 +558,7 @@ export default function CompanyDocumentsPage() {
                     <Badge variant="secondary">{selectedDocuments.length} documents</Badge>
                   </div>
                   
-                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {selectedDocuments.map((doc) => (
                       <Card 
                         key={doc.id} 
@@ -665,11 +604,10 @@ export default function CompanyDocumentsPage() {
                     onNext={goToNext}
                     hasPrevious={hasPrevious}
                     hasNext={hasNext}
-                    onBack={() => setSelectedDocument(null)}
                   />
                   
                   <ScrollArea className="flex-1">
-                    <div className="p-4 sm:p-6">
+                    <div className="p-6">
                       <DocumentPreview document={selectedDocument} />
                     </div>
                   </ScrollArea>

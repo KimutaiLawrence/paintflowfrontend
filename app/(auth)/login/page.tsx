@@ -4,13 +4,14 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { QueryClient, useMutation } from "@tanstack/react-query"
+import { useMutation } from "@tanstack/react-query"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Paintbrush, Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff } from "lucide-react"
+import Image from "next/image"
 import { ButtonLoader } from "@/components/ui/custom-loader"
 import { loginSchema, type LoginFormData } from "@/lib/validators"
 import { useAuth } from "@/hooks/use-auth"
@@ -57,8 +58,14 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="p-3 bg-primary rounded-full">
-              <Paintbrush className="h-8 w-8 text-primary-foreground" />
+            <div className="p-3 bg-white rounded-full shadow-lg">
+              <Image 
+                src="/ASUlogo.png" 
+                alt="AS United Logo" 
+                width={64} 
+                height={64}
+                className="object-contain"
+              />
             </div>
           </div>
           <CardTitle className="text-2xl font-bold">Welcome to AS United</CardTitle>
@@ -159,6 +166,18 @@ export default function LoginPage() {
               <p>
                 <strong>Worker:</strong> lawrencekimutai001@gmail.com / Lawrence65
               </p>
+            </div>
+          </div>
+
+          <div className="mt-6 p-4 bg-primary/5 rounded-lg border">
+            <div className="text-center">
+              <p className="text-sm font-semibold text-primary mb-2">AS UNITED PTE LTD</p>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p>16 WOODLANDS INDUSTRIAL PARK E1 #05-03</p>
+                <p>SINGAPORE 757737</p>
+                <p>TEL: 6368-0491 | EMAIL: andy@asunited.com.sg</p>
+                <p>CO. REG. NO: 201802491H | GST. REG. NO: 201802491H</p>
+              </div>
             </div>
           </div>
         </CardContent>

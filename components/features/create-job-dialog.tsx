@@ -107,6 +107,7 @@ export function CreateJobDialog({ open, onOpenChange }: CreateJobDialogProps) {
                     <SelectItem value="P1">P1 - High Priority</SelectItem>
                     <SelectItem value="P2">P2 - Medium Priority</SelectItem>
                     <SelectItem value="P3">P3 - Low Priority</SelectItem>
+                    <SelectItem value="blank">- (Blank)</SelectItem>
                   </SelectContent>
                 </Select>
                 {errors.priority && <p className="text-sm text-destructive">{errors.priority.message}</p>}
@@ -124,13 +125,40 @@ export function CreateJobDialog({ open, onOpenChange }: CreateJobDialogProps) {
                   Add Area
                 </Button>
               </CardTitle>
+              <p className="text-sm text-gray-500">Select specific rooms/spaces within the main area</p>
             </CardHeader>
             <CardContent className="space-y-4">
               {fields.map((field, index) => (
                 <div key={field.id} className="flex items-end space-x-2">
                   <div className="flex-1 space-y-2">
                     <Label htmlFor={`areas.${index}.name`}>Area {index + 1} Name</Label>
-                    <Input {...register(`areas.${index}.name`)} placeholder="e.g., Living Room, Kitchen, Bedroom" />
+                    <Input 
+                      {...register(`areas.${index}.name`)} 
+                      placeholder="e.g., Living Room, Kitchen, Bedroom"
+                      list={`dialog-areas-${index}`}
+                    />
+                    <datalist id={`dialog-areas-${index}`}>
+                      <option value="MBR" />
+                      <option value="CBR1" />
+                      <option value="CBR2" />
+                      <option value="CBR3" />
+                      <option value="Living hall" />
+                      <option value="Dining area" />
+                      <option value="Kitchen" />
+                      <option value="Kitchen toilet" />
+                      <option value="Common toilet" />
+                      <option value="Master toilet" />
+                      <option value="Balcony" />
+                      <option value="Service Balcony" />
+                      <option value="Corridor" />
+                      <option value="Others" />
+                      <option value="Lift lobby" />
+                      <option value="Lift A" />
+                      <option value="Lift B" />
+                      <option value="Lift C" />
+                      <option value="Roof top access" />
+                      <option value="Corridor light" />
+                    </datalist>
                     {errors.areas?.[index]?.name && (
                       <p className="text-sm text-destructive">{errors.areas[index]?.name?.message}</p>
                     )}
@@ -152,8 +180,14 @@ export function CreateJobDialog({ open, onOpenChange }: CreateJobDialogProps) {
               Cancel
             </Button>
             <Button type="submit" disabled={createJobMutation.isPending}>
-              {createJobMutation.isPending && <ButtonLoader className="mr-2" />}
-              Create Job
+              {createJobMutation.isPending ? (
+                <span className="flex items-center">
+                  <ButtonLoader className="mr-2" />
+                  Creating...
+                </span>
+              ) : (
+                "Create Job"
+              )}
             </Button>
           </div>
         </form>
