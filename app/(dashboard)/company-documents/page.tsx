@@ -56,12 +56,20 @@ const PDFViewer = ({ url, fileName }: { url: string; fileName: string }) => {
   // Optimize PDF URL for viewing with Cloudinary transformations
   const optimizedUrl = React.useMemo(() => {
     if (url.includes('cloudinary.com')) {
-      // Convert PDF to image format for better preview
-      // URL format: https://res.cloudinary.com/{cloud_name}/{resource_type}/upload/v{version}/{path}
-      const parts = url.split('/upload/')
-      if (parts.length === 2) {
-        // Add transformations: convert to JPG, show first page, optimize quality
-        return `${parts[0]}/upload/pg_1,f_jpg,w_800,q_auto,fl_progressive/${parts[1]}`
+      // Check if it's a raw resource type (needs conversion to image)
+      if (url.includes('/raw/upload/')) {
+        // Convert from raw to image with transformations
+        const parts = url.split('/raw/upload/')
+        if (parts.length === 2) {
+          // Convert to image resource type with PDF preview transformations
+          return `${parts[0]}/image/upload/pg_1,f_jpg,w_800,q_auto,fl_progressive/${parts[1]}`
+        }
+      } else if (url.includes('/image/upload/')) {
+        // Already image type, just add transformations
+        const parts = url.split('/upload/')
+        if (parts.length === 2) {
+          return `${parts[0]}/upload/pg_1,f_jpg,w_800,q_auto,fl_progressive/${parts[1]}`
+        }
       }
     }
     return url
