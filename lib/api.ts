@@ -352,7 +352,9 @@ export const sitePhotosApi = {
 export const jobSafetyDocsApi = {
   getSafetyDocuments: (jobId: string) => api.get<JobSafetyDocument[]>(`/job-safety-docs/job/${jobId}`).then(res => res.data),
   attachSafetyDocument: (jobId: string, data: { document_type: string; company_doc_id?: string }) => 
-    api.post(`/job-safety-docs/job/${jobId}`, data).then(res => res.data)
+    api.post(`/job-safety-docs/job/${jobId}`, data).then(res => res.data),
+  deleteSafetyDocument: (jobId: string, docId: string) => 
+    api.delete(`/job-safety-docs/job/${jobId}/${docId}`).then(res => res.data)
 }
 
 export const jobInspectionsApi = {

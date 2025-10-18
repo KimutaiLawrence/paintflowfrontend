@@ -3,7 +3,7 @@
 import React, { useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { jobsApi, JobDetail, sitePhotosApi, jobSafetyDocsApi, jobInspectionsApi, companyDocumentsApi, type SitePhoto, type JobSafetyDocument, type JobInspection } from "@/lib/api"
+import { jobsApi, JobDetail, sitePhotosApi, jobSafetyDocsApi, jobInspectionsApi, companyDocumentsApi, documentCategoriesApi, type SitePhoto, type JobSafetyDocument, type JobInspection } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -69,6 +69,7 @@ export default function JobDetailPage() {
   const [photoStage, setPhotoStage] = useState<string>("survey")
   const [safetyDocType, setSafetyDocType] = useState<string>("")
   const [selectedCompanyDoc, setSelectedCompanyDoc] = useState<string>("")
+  const [selectedCategory, setSelectedCategory] = useState<string>("")
 
   const { data: job, isLoading, error } = useQuery<JobDetail>({
     queryKey: ["job", jobId],
@@ -126,6 +127,11 @@ export default function JobDetailPage() {
     queryFn: () => companyDocumentsApi.getDocuments(),
   })
 
+  const { data: categories } = useQuery({
+    queryKey: ["document-categories"],
+    queryFn: documentCategoriesApi.getCategories,
+  })
+
   const deleteMutation = useMutation({
     mutationFn: () => jobsApi.deleteJob(jobId),
     onSuccess: () => {
@@ -168,6 +174,18 @@ export default function JobDetailPage() {
     },
   })
 
+  // Safety document deletion mutation
+  const deleteSafetyDocMutation = useMutation({
+    mutationFn: (docId: string) => jobSafetyDocsApi.deleteSafetyDocument(jobId, docId),
+    onSuccess: () => {
+      toast.success("Safety document removed successfully.")
+      queryClient.invalidateQueries({ queryKey: ["safety-docs", jobId] })
+    },
+    onError: (error: any) => {
+      toast.error("Failed to remove safety document.", error.response?.data?.message || error.message)
+    },
+  })
+
   // Inspection save mutation
   const saveInspectionMutation = useMutation({
     mutationFn: (data: { inspection_date: string; inspector_name: string; inspection_notes?: string }) => 
@@ -203,6 +221,15 @@ export default function JobDetailPage() {
         companyDocId: selectedCompanyDoc || undefined 
       })
     }
+  }
+
+  const handleDocumentTypeChange = (value: string) => {
+    setSafetyDocType(value)
+    setSelectedCompanyDoc("") // Clear selected company doc when type changes
+  }
+
+  const handleDeleteSafetyDoc = (docId: string) => {
+    deleteSafetyDocMutation.mutate(docId)
   }
 
   const handleSaveInspection = (data: { inspection_date: string; inspector_name: string; inspection_notes?: string }) => {
@@ -310,24 +337,41 @@ export default function JobDetailPage() {
                     <h4 className="font-medium">Attached Safety Documents</h4>
                     <div className="grid gap-2">
                       {safetyDocuments.map((doc) => (
-                        <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <FileText className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <p className="font-medium">{doc.title}</p>
-                              <p className="text-sm text-muted-foreground">{doc.document_type}</p>
+                        <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{doc.title}</p>
+                              <p className="text-sm text-muted-foreground truncate">{doc.document_type}</p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Button variant="outline" size="sm" asChild>
-                              <a href={doc.cloudinary_url} target="_blank" rel="noopener noreferrer">
-                                <Eye className="h-4 w-4" />
-                              </a>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            {doc.cloudinary_url && (
+                              <>
+                                <Button variant="outline" size="sm" asChild>
+                                  <a href={doc.cloudinary_url} target="_blank" rel="noopener noreferrer" title="View document">
+                                    <Eye className="h-4 w-4" />
+                                  </a>
+                                </Button>
+                                <Button variant="outline" size="sm" asChild>
+                                  <a href={doc.cloudinary_url} download title="Download document">
+                                    <Download className="h-4 w-4" />
+                                  </a>
+                                </Button>
+                              </>
+                            )}
+                            <Button variant="outline" size="sm" title="Edit document">
+                              <Edit className="h-4 w-4" />
                             </Button>
-                            <Button variant="outline" size="sm" asChild>
-                              <a href={doc.cloudinary_url} download>
-                                <Download className="h-4 w-4" />
-                              </a>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handleDeleteSafetyDoc(doc.id)}
+                              disabled={deleteSafetyDocMutation.isPending}
+                              title="Remove document"
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         </div>
@@ -349,50 +393,61 @@ export default function JobDetailPage() {
                           Attach Safety Document
                         </Button>
                       </DialogTrigger>
-                      <DialogContent>
+                      <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
                         <DialogHeader>
                           <DialogTitle>Attach Safety Document</DialogTitle>
                           <DialogDescription>
-                            Select a document type and choose from company documents or upload a new one.
+                            Select a document type and optionally choose from company documents.
                           </DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4">
                           <div className="space-y-2">
-                            <Label htmlFor="doc-type">Document Type</Label>
-                            <Select value={safetyDocType} onValueChange={setSafetyDocType}>
-                              <SelectTrigger>
+                            <Label htmlFor="doc-type">Document Type *</Label>
+                            <Select value={safetyDocType} onValueChange={handleDocumentTypeChange}>
+                              <SelectTrigger className="w-full">
                                 <SelectValue placeholder="Select document type" />
                               </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="PTW">Permit to Work (PTW)</SelectItem>
-                                <SelectItem value="TBM">Toolbox Meeting (TBM)</SelectItem>
-                                <SelectItem value="WAH">Work at Height (WAH)</SelectItem>
-                                <SelectItem value="VSS">VSS Checklist</SelectItem>
-                                <SelectItem value="SWP">Safe Work Procedure (SWP)</SelectItem>
-                                <SelectItem value="SDS">Safety Data Sheet (SDS)</SelectItem>
-                                <SelectItem value="FPP">Fall Prevention Plan (FPP)</SelectItem>
-                                <SelectItem value="RA">Risk Assessment (RA)</SelectItem>
-                                <SelectItem value="MS">Method Statement (MS)</SelectItem>
-                                <SelectItem value="ERP">Emergency Response Plan (ERP)</SelectItem>
+                              <SelectContent className="max-h-48 overflow-y-auto">
+                                {categories?.map((category: any) => (
+                                  <SelectItem key={category.id} value={category.code}>
+                                    <div className="flex items-center space-x-2 py-1">
+                                      <div 
+                                        className="w-2 h-2 rounded-full flex-shrink-0" 
+                                        style={{ backgroundColor: category.color || '#3B82F6' }}
+                                      />
+                                      <span className="truncate">{category.code} - {category.name}</span>
+                                    </div>
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="company-doc">Company Document (Optional)</Label>
                             <Select value={selectedCompanyDoc} onValueChange={setSelectedCompanyDoc}>
-                              <SelectTrigger>
+                              <SelectTrigger className="w-full">
                                 <SelectValue placeholder="Select from company documents" />
                               </SelectTrigger>
-                              <SelectContent>
-                                {companyDocuments?.map((doc: any) => (
-                                  <SelectItem key={doc.id} value={doc.id}>
-                                    {doc.name} ({doc.category})
-                                  </SelectItem>
-                                ))}
+                              <SelectContent className="max-h-48 overflow-y-auto">
+                                {companyDocuments
+                                  ?.filter((doc: any) => !safetyDocType || doc.category === safetyDocType)
+                                  ?.map((doc: any) => (
+                                    <SelectItem key={doc.id} value={doc.id}>
+                                      <div className="flex flex-col py-1 max-w-xs">
+                                        <span className="font-medium truncate">{doc.name}</span>
+                                        <span className="text-sm text-muted-foreground truncate">{doc.category} - {doc.description}</span>
+                                      </div>
+                                    </SelectItem>
+                                  ))}
+                                {(!companyDocuments || companyDocuments.filter((doc: any) => !safetyDocType || doc.category === safetyDocType).length === 0) && (
+                                  <div className="p-2 text-sm text-muted-foreground">
+                                    {safetyDocType ? `No documents found for category ${safetyDocType}` : "No company documents available"}
+                                  </div>
+                                )}
                               </SelectContent>
                             </Select>
                           </div>
-                          <div className="flex justify-end gap-2">
+                          <div className="flex justify-end gap-2 pt-2">
                             <Button variant="outline" onClick={() => setShowSafetyDocDialog(false)}>
                               Cancel
                             </Button>
@@ -407,16 +462,6 @@ export default function JobDetailPage() {
                         </div>
                       </DialogContent>
                     </Dialog>
-                  </div>
-                  <div className="space-y-3">
-                    <h4 className="font-medium">Upload New Document</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Upload a new safety document file
-                    </p>
-                    <Button variant="outline" className="w-full" disabled>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload New Document (Coming Soon)
-                    </Button>
                   </div>
                 </div>
               </CardContent>
