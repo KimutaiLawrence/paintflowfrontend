@@ -363,6 +363,27 @@ export const jobInspectionsApi = {
     api.post(`/job-inspections/job/${jobId}`, data).then(res => res.data)
 }
 
+export const jobFloorPlansApi = {
+  getFloorPlan: (jobId: string) => api.get(`/job-floor-plans/job/${jobId}`).then(res => res.data),
+  attachFloorPlan: (jobId: string, floorPlanId: string) => 
+    api.post(`/job-floor-plans/job/${jobId}`, { floor_plan_id: floorPlanId }).then(res => res.data),
+  removeFloorPlan: (jobId: string) => 
+    api.delete(`/job-floor-plans/job/${jobId}`).then(res => res.data),
+  recalculateUsage: () => 
+    api.post(`/job-floor-plans/recalculate-usage`).then(res => res.data)
+}
+
+export const jobEditableDocsApi = {
+  getEditableDocuments: (jobId: string) => api.get(`/job-editable-docs/job/${jobId}`).then(res => res.data),
+  createEditableDocument: (jobId: string, originalDocumentId: string) => 
+    api.post(`/job-editable-docs/job/${jobId}`, { original_document_id: originalDocumentId }).then(res => res.data),
+  updateEditableDocument: (docId: string, data: { edited_data?: any; e_signature_data?: any }) => 
+    api.put(`/job-editable-docs/${docId}`, data).then(res => res.data),
+  deleteEditableDocument: (docId: string) => 
+    api.delete(`/job-editable-docs/${docId}`).then(res => res.data)
+}
+
+
 export const completionReportsApi = {
   getCompletionReports: (params?: { page?: number; per_page?: number; search?: string; job_id?: string }) => 
     api.get<PaginatedResponse<CompletionReport>>("/reports/completion-reports", { params }).then(res => res.data),

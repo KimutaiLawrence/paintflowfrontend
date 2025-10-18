@@ -3,7 +3,7 @@
 import React, { useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { jobsApi, JobDetail, sitePhotosApi, jobSafetyDocsApi, jobInspectionsApi, companyDocumentsApi, documentCategoriesApi, type SitePhoto, type JobSafetyDocument, type JobInspection } from "@/lib/api"
+import { jobsApi, JobDetail, sitePhotosApi, jobSafetyDocsApi, jobInspectionsApi, companyDocumentsApi, documentCategoriesApi, jobFloorPlansApi, floorPlanTemplatesApi, jobEditableDocsApi, type SitePhoto, type JobSafetyDocument, type JobInspection } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -70,6 +70,16 @@ export default function JobDetailPage() {
   const [safetyDocType, setSafetyDocType] = useState<string>("")
   const [selectedCompanyDoc, setSelectedCompanyDoc] = useState<string>("")
   const [selectedCategory, setSelectedCategory] = useState<string>("")
+  
+  // Floor plan state
+  const [showFloorPlanDialog, setShowFloorPlanDialog] = useState(false)
+  const [selectedFloorPlan, setSelectedFloorPlan] = useState<string>("")
+  
+  // Document editor state
+  const [showDocumentEditor, setShowDocumentEditor] = useState(false)
+  const [selectedDocument, setSelectedDocument] = useState<any>(null)
+  const [showSignatureModal, setShowSignatureModal] = useState(false)
+  const [signatureData, setSignatureData] = useState<string>("")
 
   const { data: job, isLoading, error } = useQuery<JobDetail>({
     queryKey: ["job", jobId],
@@ -132,6 +142,23 @@ export default function JobDetailPage() {
     queryFn: documentCategoriesApi.getCategories,
   })
 
+  const { data: floorPlanTemplates } = useQuery({
+    queryKey: ["floor-plan-templates"],
+    queryFn: () => floorPlanTemplatesApi.getFloorPlanTemplates(),
+  })
+
+  const { data: jobFloorPlan } = useQuery({
+    queryKey: ["job-floor-plan", jobId],
+    queryFn: () => jobFloorPlansApi.getFloorPlan(jobId),
+    enabled: !!jobId,
+  })
+
+  const { data: editableDocuments } = useQuery({
+    queryKey: ["editable-documents", jobId],
+    queryFn: () => jobEditableDocsApi.getEditableDocuments(jobId),
+    enabled: !!jobId,
+  })
+
   const deleteMutation = useMutation({
     mutationFn: () => jobsApi.deleteJob(jobId),
     onSuccess: () => {
@@ -186,6 +213,32 @@ export default function JobDetailPage() {
     },
   })
 
+  // Floor plan mutations
+  const attachFloorPlanMutation = useMutation({
+    mutationFn: (floorPlanId: string) => jobFloorPlansApi.attachFloorPlan(jobId, floorPlanId),
+    onSuccess: () => {
+      toast.success("Floor plan attached successfully.")
+      queryClient.invalidateQueries({ queryKey: ["job-floor-plan", jobId] })
+      queryClient.invalidateQueries({ queryKey: ["job", jobId] })
+      setShowFloorPlanDialog(false)
+    },
+    onError: (error: any) => {
+      toast.error("Failed to attach floor plan.", error.response?.data?.message || error.message)
+    },
+  })
+
+  const removeFloorPlanMutation = useMutation({
+    mutationFn: () => jobFloorPlansApi.removeFloorPlan(jobId),
+    onSuccess: () => {
+      toast.success("Floor plan removed successfully.")
+      queryClient.invalidateQueries({ queryKey: ["job-floor-plan", jobId] })
+      queryClient.invalidateQueries({ queryKey: ["job", jobId] })
+    },
+    onError: (error: any) => {
+      toast.error("Failed to remove floor plan.", error.response?.data?.message || error.message)
+    },
+  })
+
   // Inspection save mutation
   const saveInspectionMutation = useMutation({
     mutationFn: (data: { inspection_date: string; inspector_name: string; inspection_notes?: string }) => 
@@ -197,6 +250,30 @@ export default function JobDetailPage() {
     },
     onError: (error: any) => {
       toast.error("Failed to save inspection data.", error.response?.data?.message || error.message)
+    },
+  })
+
+  // Editable documents mutations
+  const createEditableDocMutation = useMutation({
+    mutationFn: (originalDocumentId: string) => jobEditableDocsApi.createEditableDocument(jobId, originalDocumentId),
+    onSuccess: () => {
+      toast.success("Editable document created successfully.")
+      queryClient.invalidateQueries({ queryKey: ["editable-documents", jobId] })
+      setSelectedCompanyDoc("")
+    },
+    onError: (error: any) => {
+      toast.error("Failed to create editable document.", error.response?.data?.message || error.message)
+    },
+  })
+
+  const deleteEditableDocMutation = useMutation({
+    mutationFn: (docId: string) => jobEditableDocsApi.deleteEditableDocument(docId),
+    onSuccess: () => {
+      toast.success("Editable document deleted successfully.")
+      queryClient.invalidateQueries({ queryKey: ["editable-documents", jobId] })
+    },
+    onError: (error: any) => {
+      toast.error("Failed to delete editable document.", error.response?.data?.message || error.message)
     },
   })
 
@@ -230,6 +307,16 @@ export default function JobDetailPage() {
 
   const handleDeleteSafetyDoc = (docId: string) => {
     deleteSafetyDocMutation.mutate(docId)
+  }
+
+  const handleAttachFloorPlan = () => {
+    if (selectedFloorPlan) {
+      attachFloorPlanMutation.mutate(selectedFloorPlan)
+    }
+  }
+
+  const handleRemoveFloorPlan = () => {
+    removeFloorPlanMutation.mutate()
   }
 
   const handleSaveInspection = (data: { inspection_date: string; inspector_name: string; inspection_notes?: string }) => {
@@ -348,15 +435,15 @@ export default function JobDetailPage() {
                           <div className="flex items-center gap-1 flex-shrink-0">
                             {doc.cloudinary_url && (
                               <>
-                                <Button variant="outline" size="sm" asChild>
+                            <Button variant="outline" size="sm" asChild>
                                   <a href={doc.cloudinary_url} target="_blank" rel="noopener noreferrer" title="View document">
-                                    <Eye className="h-4 w-4" />
-                                  </a>
-                                </Button>
-                                <Button variant="outline" size="sm" asChild>
+                                <Eye className="h-4 w-4" />
+                              </a>
+                            </Button>
+                            <Button variant="outline" size="sm" asChild>
                                   <a href={doc.cloudinary_url} download title="Download document">
-                                    <Download className="h-4 w-4" />
-                                  </a>
+                                <Download className="h-4 w-4" />
+                              </a>
                                 </Button>
                               </>
                             )}
@@ -432,13 +519,13 @@ export default function JobDetailPage() {
                                 {companyDocuments
                                   ?.filter((doc: any) => !safetyDocType || doc.category === safetyDocType)
                                   ?.map((doc: any) => (
-                                    <SelectItem key={doc.id} value={doc.id}>
+                                  <SelectItem key={doc.id} value={doc.id}>
                                       <div className="flex flex-col py-1 max-w-xs">
                                         <span className="font-medium truncate">{doc.name}</span>
                                         <span className="text-sm text-muted-foreground truncate">{doc.category} - {doc.description}</span>
                                       </div>
-                                    </SelectItem>
-                                  ))}
+                                  </SelectItem>
+                                ))}
                                 {(!companyDocuments || companyDocuments.filter((doc: any) => !safetyDocType || doc.category === safetyDocType).length === 0) && (
                                   <div className="p-2 text-sm text-muted-foreground">
                                     {safetyDocType ? `No documents found for category ${safetyDocType}` : "No company documents available"}
@@ -481,6 +568,98 @@ export default function JobDetailPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Job Floor Plan Section */}
+                <div className="space-y-3">
+                  <h4 className="font-medium">Job Floor Plan</h4>
+                  {jobFloorPlan ? (
+                    <div className="p-4 border rounded-lg bg-muted/50">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="font-medium">{jobFloorPlan.name}</p>
+                            <p className="text-sm text-muted-foreground">{jobFloorPlan.category} - {jobFloorPlan.description}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" asChild>
+                            <a href={jobFloorPlan.job_floor_plan_url || jobFloorPlan.image_url} target="_blank" rel="noopener noreferrer" title="View floor plan">
+                              <Eye className="h-4 w-4" />
+                            </a>
+                          </Button>
+                          <Button variant="outline" size="sm" asChild>
+                            <a href={jobFloorPlan.job_floor_plan_url || jobFloorPlan.image_url} download title="Download floor plan">
+                              <Download className="h-4 w-4" />
+                            </a>
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={handleRemoveFloorPlan}
+                            disabled={removeFloorPlanMutation.isPending}
+                            title="Remove floor plan"
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 border rounded-lg bg-muted/20">
+                      <p className="text-sm text-muted-foreground mb-3">No floor plan attached to this job</p>
+                      <Dialog open={showFloorPlanDialog} onOpenChange={setShowFloorPlanDialog}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="sm">
+                            <Plus className="h-4 w-4 mr-2" />
+                            Attach Floor Plan
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+                          <DialogHeader>
+                            <DialogTitle>Attach Floor Plan</DialogTitle>
+                            <DialogDescription>
+                              Select a floor plan template to attach to this job.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="floor-plan">Floor Plan Template *</Label>
+                              <Select value={selectedFloorPlan} onValueChange={setSelectedFloorPlan}>
+                                <SelectTrigger className="w-full">
+                                  <SelectValue placeholder="Select floor plan template" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-48 overflow-y-auto">
+                                  {floorPlanTemplates?.data?.map((template: any) => (
+                                    <SelectItem key={template.id} value={template.id}>
+                                      <div className="flex flex-col py-1 max-w-xs">
+                                        <span className="font-medium truncate">{template.name}</span>
+                                        <span className="text-sm text-muted-foreground truncate">{template.category} - {template.description}</span>
+                                      </div>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="flex justify-end gap-2 pt-2">
+                              <Button variant="outline" onClick={() => setShowFloorPlanDialog(false)}>
+                                Cancel
+                              </Button>
+                              <Button 
+                                onClick={handleAttachFloorPlan}
+                                disabled={!selectedFloorPlan || attachFloorPlanMutation.isPending}
+                              >
+                                {attachFloorPlanMutation.isPending && <ButtonLoader className="mr-2" />}
+                                Attach Floor Plan
+                              </Button>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  )}
+                </div>
+
                 {/* Inspection Data Display */}
                 {inspection && (
                   <div className="space-y-3 p-4 border rounded-lg bg-muted/50">
@@ -503,13 +682,13 @@ export default function JobDetailPage() {
                         <Button variant="outline" size="sm" asChild>
                           <a href={inspection.floor_plan_url} target="_blank" rel="noopener noreferrer">
                             <Eye className="h-4 w-4 mr-2" />
-                            View Floor Plan
+                            View Inspection Floor Plan
                           </a>
                         </Button>
                         <Button variant="outline" size="sm" asChild>
                           <a href={inspection.floor_plan_url} download>
                             <Download className="h-4 w-4 mr-2" />
-                            Download Floor Plan
+                            Download Inspection Floor Plan
                           </a>
                         </Button>
                       </div>
@@ -595,7 +774,8 @@ export default function JobDetailPage() {
                             Record inspection details for this job.
                           </DialogDescription>
                         </DialogHeader>
-                        <div className="space-y-4">
+                        <div className="space-y-6 max-h-[80vh] overflow-y-auto">
+                          <div className="space-y-4">
                           <div className="space-y-2">
                             <Label htmlFor="inspector-name">Inspector Name</Label>
                             <Input 
@@ -621,7 +801,131 @@ export default function JobDetailPage() {
                               rows={3}
                             />
                           </div>
-                          <div className="flex justify-end gap-2">
+                          </div>
+
+                          {/* Interactive Company Documents Section */}
+                          <div className="space-y-4 border-t pt-4">
+                            <div className="space-y-2">
+                              <Label>Interactive Company Documents</Label>
+                              <p className="text-sm text-muted-foreground">
+                                Create and manage editable copies of company documents for this inspection
+                              </p>
+                            </div>
+
+                            {/* Show existing editable documents first */}
+                            {(editableDocuments?.data && editableDocuments.data.length > 0) || (editableDocuments && Array.isArray(editableDocuments) && editableDocuments.length > 0) ? (
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <Label className="text-sm font-medium">Existing Editable Documents</Label>
+                                  <Badge variant="outline" className="text-xs">
+                                    {(editableDocuments.data || editableDocuments).length} document{(editableDocuments.data || editableDocuments).length !== 1 ? 's' : ''}
+                                  </Badge>
+                                </div>
+                                <div className="space-y-2 max-h-60 overflow-y-auto border rounded-lg p-3 bg-muted/30">
+                                  {(editableDocuments.data || editableDocuments).map((doc: any) => (
+                                    <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg bg-background">
+                                      <div className="flex items-center gap-3">
+                                        <FileText className="h-5 w-5 text-muted-foreground" />
+                                        <div className="flex-1">
+                                          <p className="text-sm font-medium">{doc.document_name}</p>
+                                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                            <span>{doc.original_file_name}</span>
+                                            <span>•</span>
+                                            <span className={doc.is_signed ? 'text-green-600' : 'text-orange-600'}>
+                                              {doc.is_signed ? 'Signed' : 'Not signed'}
+                                            </span>
+                                            <span>•</span>
+                                            <span>{new Date(doc.created_at).toLocaleDateString()}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => {
+                                            setSelectedDocument(doc)
+                                            setShowDocumentEditor(true)
+                                          }}
+                                          title="View/Edit Document"
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => {
+                                            // TODO: Open signature dialog
+                                            toast.info("Signature functionality coming soon!")
+                                          }}
+                                          title="Add Signature"
+                                          disabled={doc.is_signed}
+                                        >
+                                          <FileText className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => {
+                                            deleteEditableDocMutation.mutate(doc.id)
+                                          }}
+                                          disabled={deleteEditableDocMutation.isPending}
+                                          title="Delete Document"
+                                          className="text-destructive hover:text-destructive"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {/* Add new document section */}
+                            <div className="space-y-3 border-t pt-3">
+                              <Label className="text-sm font-medium">Add New Editable Document</Label>
+                            
+                            {/* Company Documents Selection */}
+                            <div className="space-y-2">
+                              <Label htmlFor="company-document">Select Document</Label>
+                              <Select value={selectedCompanyDoc} onValueChange={setSelectedCompanyDoc}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Choose a company document" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-48 overflow-y-auto">
+                                  {companyDocuments?.map((doc: any) => (
+                                    <SelectItem key={doc.id} value={doc.id}>
+                                      <div className="flex flex-col py-1 max-w-xs">
+                                        <span className="font-medium truncate">{doc.name}</span>
+                                        <span className="text-sm text-muted-foreground truncate">{doc.category} - {doc.description}</span>
+                                      </div>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* Create Editable Document Button */}
+                            {selectedCompanyDoc && (
+                              <Button 
+                                onClick={() => {
+                                  if (selectedCompanyDoc) {
+                                    createEditableDocMutation.mutate(selectedCompanyDoc)
+                                  }
+                                }}
+                                disabled={createEditableDocMutation.isPending}
+                                className="w-full"
+                              >
+                                {createEditableDocMutation.isPending && <ButtonLoader className="mr-2" />}
+                                <FileText className="h-4 w-4 mr-2" />
+                                Create Editable Copy
+                              </Button>
+                            )}
+
+                          </div>
+
+                          <div className="flex justify-end gap-2 border-t pt-4">
                             <Button variant="outline" onClick={() => setShowInspectionDialog(false)}>
                               Cancel
                             </Button>
@@ -644,6 +948,7 @@ export default function JobDetailPage() {
                               {saveInspectionMutation.isPending && <ButtonLoader className="mr-2" />}
                               {inspection ? 'Update' : 'Save'} Inspection
                             </Button>
+                          </div>
                           </div>
                         </div>
                       </DialogContent>
@@ -741,15 +1046,17 @@ export default function JobDetailPage() {
                   <div className="space-y-3">
                     {[
                       { status: 'pending_survey', label: 'Pending Survey', description: 'Initial site survey required' },
+                      { status: 'in_review', label: 'In Review', description: 'Manager verification of inspection' },
                       { status: 'pending_repair', label: 'Pending Repair', description: 'Begin repair work' },
                       { status: 'left_primer', label: 'Left Primer', description: 'Apply primer coating' },
                       { status: 'left_ultra', label: 'Left Ultra', description: 'Apply ultra coating' },
                       { status: 'left_top_coat_cover_slab', label: 'Left Top Coat/Cover Slab', description: 'Apply top coat' },
-                      { status: 'in_review', label: 'In Review', description: 'Awaiting client approval' },
-                      { status: 'approved', label: 'Approved', description: 'Job completed and approved' }
+                      { status: 'repair_completed', label: 'Repair Completed', description: 'All repair work finished' },
+                      { status: 'approved', label: 'Approved', description: 'Job approved by client' },
+                      { status: 'job_completed', label: 'Job Completed', description: 'Job fully completed and closed' }
                     ].map((stage, index) => {
                       const isCompleted = job?.status && 
-                        ['pending_survey', 'pending_repair', 'left_primer', 'left_ultra', 'left_top_coat_cover_slab', 'in_review', 'approved']
+                        ['pending_survey', 'in_review', 'pending_repair', 'left_primer', 'left_ultra', 'left_top_coat_cover_slab', 'repair_completed', 'approved', 'job_completed']
                           .indexOf(String(job.status)) >= index
                       const isCurrent = String(job?.status) === stage.status
                       
@@ -788,13 +1095,15 @@ export default function JobDetailPage() {
                     <div className="space-y-2">
                       <h5 className="text-sm font-medium">Next Steps:</h5>
                       <p className="text-sm text-muted-foreground">
-                        {String(job?.status) === 'pending_survey' && 'Upload survey photos to progress to repair stage'}
+                        {String(job?.status) === 'pending_survey' && 'Upload survey photos to move to manager review'}
+                        {String(job?.status) === 'in_review' && 'Manager to verify inspection details and approve to proceed with repairs'}
                         {String(job?.status) === 'pending_repair' && 'Upload repair photos to progress to primer stage'}
                         {String(job?.status) === 'left_primer' && 'Upload primer photos to progress to ultra stage'}
                         {String(job?.status) === 'left_ultra' && 'Upload ultra photos to progress to topcoat stage'}
-                        {String(job?.status) === 'left_top_coat_cover_slab' && 'Upload topcoat photos to move to review stage'}
-                        {String(job?.status) === 'in_review' && 'Awaiting client approval'}
-                        {String(job?.status) === 'approved' && 'Job completed successfully'}
+                        {String(job?.status) === 'left_top_coat_cover_slab' && 'Upload topcoat photos to complete repairs'}
+                        {String(job?.status) === 'repair_completed' && 'Awaiting final approval'}
+                        {String(job?.status) === 'approved' && 'Mark job as completed'}
+                        {String(job?.status) === 'job_completed' && 'Job fully completed and closed'}
                         {!job?.status && 'Schedule initial survey'}
                       </p>
                     </div>
@@ -1079,6 +1388,359 @@ export default function JobDetailPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Document Editor Modal */}
+      <Dialog open={showDocumentEditor} onOpenChange={setShowDocumentEditor}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>Document Editor</DialogTitle>
+            <DialogDescription>
+              View and edit the document: {selectedDocument?.document_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {selectedDocument && (
+              <div className="space-y-4">
+                {/* Document Info */}
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div className="flex items-center gap-3">
+                    <FileText className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium">{selectedDocument.document_name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedDocument.original_file_name} • 
+                        {selectedDocument.is_signed ? ' Signed' : ' Not signed'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(selectedDocument.cloudinary_url, '_blank')}
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      Open in New Tab
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setShowSignatureModal(true)
+                      }}
+                      disabled={selectedDocument.is_signed}
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      {selectedDocument.is_signed ? 'Signed' : 'Add Signature'}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Document Preview/Editor */}
+                <div className="border rounded-lg p-4 bg-muted/20">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium">Document Preview</h4>
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            // Download the document
+                            const link = document.createElement('a')
+                            link.href = selectedDocument.cloudinary_url
+                            link.download = selectedDocument.original_file_name
+                            link.target = '_blank'
+                            document.body.appendChild(link)
+                            link.click()
+                            document.body.removeChild(link)
+                          }}
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            // TODO: Implement editing mode
+                            toast.info("Document editing mode coming soon!")
+                          }}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    {/* Editing Toolbar */}
+                    <div className="flex items-center gap-2 p-2 border rounded-lg bg-muted/30">
+                      <span className="text-sm font-medium">Tools:</span>
+                      <Button variant="outline" size="sm" title="Add Text">
+                        <FileText className="h-4 w-4 mr-1" />
+                        Text
+                      </Button>
+                      <Button variant="outline" size="sm" title="Add Rectangle">
+                        <div className="h-4 w-4 border border-current mr-1" />
+                        Rectangle
+                      </Button>
+                      <Button variant="outline" size="sm" title="Add Circle">
+                        <div className="h-4 w-4 rounded-full border border-current mr-1" />
+                        Circle
+                      </Button>
+                      <Button variant="outline" size="sm" title="Add Arrow">
+                        <div className="h-4 w-4 mr-1">→</div>
+                        Arrow
+                      </Button>
+                      <Button variant="outline" size="sm" title="Add Signature">
+                        <FileText className="h-4 w-4 mr-1" />
+                        Signature
+                      </Button>
+                      <div className="flex-1" />
+                      <Button variant="outline" size="sm" title="Save Changes">
+                        <Download className="h-4 w-4 mr-1" />
+                        Save
+                      </Button>
+                    </div>
+
+                    {/* Document Content */}
+                    <div className="border rounded-lg p-4 bg-background min-h-[500px] max-h-[600px] overflow-auto relative">
+                      {selectedDocument.mime_type?.includes('image') ? (
+                        // Image viewer with editing overlay
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-sm font-medium">Image Document</span>
+                            <Badge variant="outline">JPG/PNG</Badge>
+                          </div>
+                          <div className="flex justify-center relative">
+                            <div className="relative">
+                              <img 
+                                src={selectedDocument.cloudinary_url} 
+                                alt={selectedDocument.document_name}
+                                className="max-w-full max-h-[400px] object-contain border rounded-lg shadow-sm"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none'
+                                  e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                                }}
+                              />
+                              {/* Editing Canvas Overlay */}
+                              <canvas 
+                                className="absolute top-0 left-0 w-full h-full cursor-crosshair"
+                                style={{ 
+                                  maxWidth: '100%', 
+                                  maxHeight: '400px',
+                                  pointerEvents: 'auto'
+                                }}
+                                onClick={(e) => {
+                                  // TODO: Add drawing functionality
+                                  console.log('Canvas clicked for editing')
+                                }}
+                              />
+                              <div className="hidden flex flex-col items-center justify-center min-h-[400px] text-center space-y-2">
+                                <FileText className="h-12 w-12 text-muted-foreground" />
+                                <p className="text-muted-foreground">Failed to load image</p>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => window.open(selectedDocument.cloudinary_url, '_blank')}
+                                >
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  Open in New Tab
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                          {/* Editing Instructions */}
+                          <div className="text-center text-sm text-muted-foreground">
+                            <p>Click on the document to add annotations, text, or drawings</p>
+                          </div>
+                        </div>
+                      ) : selectedDocument.mime_type?.includes('pdf') ? (
+                        // PDF viewer
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-sm font-medium">PDF Document</span>
+                            <Badge variant="outline">PDF</Badge>
+                          </div>
+                          <div className="flex justify-center">
+                            <iframe
+                              src={`${selectedDocument.cloudinary_url}#toolbar=1&navpanes=1&scrollbar=1`}
+                              className="w-full h-[400px] border rounded-lg"
+                              title={selectedDocument.document_name}
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none'
+                                e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                              }}
+                            />
+                            <div className="hidden flex flex-col items-center justify-center min-h-[400px] text-center space-y-2">
+                              <FileText className="h-12 w-12 text-muted-foreground" />
+                              <p className="text-muted-foreground">PDF viewer not supported</p>
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => window.open(selectedDocument.cloudinary_url, '_blank')}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                Open in New Tab
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        // Generic document viewer
+                        <div className="flex flex-col items-center justify-center min-h-[400px] text-center space-y-4">
+                          <FileText className="h-16 w-16 text-muted-foreground" />
+                          <div className="space-y-2">
+                            <p className="text-lg font-medium">Document Preview</p>
+                            <p className="text-sm text-muted-foreground">
+                              Document type: {selectedDocument.mime_type || 'Unknown'}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              File: {selectedDocument.original_file_name}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button 
+                              variant="outline" 
+                              onClick={() => window.open(selectedDocument.cloudinary_url, '_blank')}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              Open in New Tab
+                            </Button>
+                            <Button 
+                              variant="outline"
+                              onClick={() => {
+                                const link = document.createElement('a')
+                                link.href = selectedDocument.cloudinary_url
+                                link.download = selectedDocument.original_file_name
+                                link.target = '_blank'
+                                document.body.appendChild(link)
+                                link.click()
+                                document.body.removeChild(link)
+                              }}
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              Download
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Document Status */}
+                    <div className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">Document Status</p>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={selectedDocument.is_signed ? "default" : "secondary"}>
+                            {selectedDocument.is_signed ? 'Signed' : 'Not Signed'}
+                          </Badge>
+                          <span className="text-sm text-muted-foreground">
+                            Created: {new Date(selectedDocument.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          deleteEditableDocMutation.mutate(selectedDocument.id)
+                          setShowDocumentEditor(false)
+                        }}
+                        disabled={deleteEditableDocMutation.isPending}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Document
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Signature Modal */}
+      <Dialog open={showSignatureModal} onOpenChange={setShowSignatureModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add Digital Signature</DialogTitle>
+            <DialogDescription>
+              Sign the document: {selectedDocument?.document_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Signature Canvas */}
+            <div className="border rounded-lg p-4">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>Signature</Label>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setSignatureData("")}
+                  >
+                    Clear
+                  </Button>
+                </div>
+                <div className="border rounded-lg p-4 bg-background min-h-[200px] flex items-center justify-center">
+                  {signatureData ? (
+                    <div className="text-center space-y-2">
+                      <div className="text-4xl font-bold text-green-600">✓</div>
+                      <p className="text-sm text-muted-foreground">Signature Captured</p>
+                    </div>
+                  ) : (
+                    <div className="text-center space-y-2">
+                      <FileText className="h-12 w-12 text-muted-foreground mx-auto" />
+                      <p className="text-muted-foreground">Click to add signature</p>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          // TODO: Implement actual signature capture
+                          setSignatureData("signature_captured")
+                          toast.success("Signature captured! (Demo mode)")
+                        }}
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        Capture Signature
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Signature Actions */}
+            <div className="flex justify-end gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowSignatureModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => {
+                  if (signatureData) {
+                    // TODO: Save signature to document
+                    toast.success("Signature added to document!")
+                    setShowSignatureModal(false)
+                    // Update document status
+                    queryClient.invalidateQueries({ queryKey: ["editable-documents", jobId] })
+                  } else {
+                    toast.error("Please capture a signature first")
+                  }
+                }}
+                disabled={!signatureData}
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Apply Signature
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
