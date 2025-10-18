@@ -12,8 +12,8 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useMutation } from '@tanstack/react-query'
-import { companyDocumentsApi } from '@/lib/api'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { companyDocumentsApi, documentCategoriesApi } from '@/lib/api'
 import { UploadCloud, File, X } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Input } from '@/components/ui/input'
@@ -26,17 +26,35 @@ interface DocumentUploadModalProps {
   onUploadSuccess?: () => void
 }
 
-const docCategories = ["SWP", "SDS", "FPP", "RA", "MS", "ERP", "Other"];
-
 export function DocumentUploadModal({ isOpen, onClose, onUploadSuccess }: DocumentUploadModalProps) {
   const [files, setFiles] = useState<File[]>([])
   const [category, setCategory] = useState<string>("")
   const [docName, setDocName] = useState("")
   const [docDescription, setDocDescription] = useState("")
+  const [newCategoryCode, setNewCategoryCode] = useState("")
+  const [newCategoryName, setNewCategoryName] = useState("")
+  const [showNewCategoryForm, setShowNewCategoryForm] = useState(false)
   const { toast } = useToast()
   
-  // Note: QueryClient invalidation will be handled by the parent component
-
+  // Fetch categories
+  const { data: categories = [] } = useQuery({
+    queryKey: ["document-categories"],
+    queryFn: documentCategoriesApi.getCategories,
+  })
+  
+  // Create category mutation
+  const createCategoryMutation = useMutation({
+    mutationFn: documentCategoriesApi.createCategory,
+    onSuccess: () => {
+      toast.success("Category created successfully")
+      setShowNewCategoryForm(false)
+      setNewCategoryCode("")
+      setNewCategoryName("")
+    },
+    onError: (error: any) => {
+      toast.error("Failed to create category: " + (error.response?.data?.message || "Please try again"))
+    }
+  })
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setFiles(prevFiles => [...prevFiles, ...acceptedFiles]) // Allow multiple files
@@ -85,11 +103,24 @@ export function DocumentUploadModal({ isOpen, onClose, onUploadSuccess }: Docume
     }
   }
 
+  const handleCreateCategory = () => {
+    if (newCategoryCode && newCategoryName) {
+      createCategoryMutation.mutate({
+        code: newCategoryCode.toUpperCase(),
+        name: newCategoryName,
+        description: `Category for ${newCategoryName} documents`
+      })
+    }
+  }
+
   const handleClose = () => {
     setFiles([])
     setCategory("")
     setDocName("")
     setDocDescription("")
+    setNewCategoryCode("")
+    setNewCategoryName("")
+    setShowNewCategoryForm(false)
     onClose()
   }
 
@@ -168,14 +199,80 @@ export function DocumentUploadModal({ isOpen, onClose, onUploadSuccess }: Docume
             </>
           )}
 
-          <Select onValueChange={setCategory} value={category}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select a document category" />
-            </SelectTrigger>
-            <SelectContent>
-              {docCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <div className="space-y-2">
+            <Label htmlFor="category">Category *</Label>
+            <Select onValueChange={setCategory} value={category}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a document category" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((cat: any) => (
+                  <SelectItem key={cat.id} value={cat.code}>
+                    <div className="flex items-center space-x-2">
+                      <div 
+                        className="w-2 h-2 rounded-full" 
+                        style={{ backgroundColor: cat.color || '#3B82F6' }}
+                      />
+                      <span>{cat.code} - {cat.name}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+                <SelectItem value="__create_new__">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-primary">+ Create New Category</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            
+            {category === "__create_new__" && (
+              <div className="space-y-3 p-3 border rounded-md bg-muted/50">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label htmlFor="newCategoryCode">Code *</Label>
+                    <Input
+                      id="newCategoryCode"
+                      value={newCategoryCode}
+                      onChange={(e) => setNewCategoryCode(e.target.value.toUpperCase())}
+                      placeholder="e.g., FPP"
+                      maxLength={10}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="newCategoryName">Name *</Label>
+                    <Input
+                      id="newCategoryName"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="e.g., Fall Prevention Plan"
+                    />
+                  </div>
+                </div>
+                <div className="flex space-x-2">
+                  <Button 
+                    type="button" 
+                    size="sm" 
+                    onClick={handleCreateCategory}
+                    disabled={!newCategoryCode || !newCategoryName || createCategoryMutation.isPending}
+                  >
+                    {createCategoryMutation.isPending ? 'Creating...' : 'Create Category'}
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      setCategory("")
+                      setNewCategoryCode("")
+                      setNewCategoryName("")
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>Cancel</Button>

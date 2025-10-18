@@ -23,7 +23,8 @@ import {
   Printer,
   Share,
   Info,
-  X
+  X,
+  Edit
 } from "lucide-react"
 import { StyledFolderIcon } from "@/components/ui/styled-folder-icon"
 import { DocumentUploadModal } from "@/components/modals/document-upload-modal"
@@ -35,6 +36,14 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 // Define the structure of a single document
 interface CompanyDocument {
@@ -48,32 +57,28 @@ interface CompanyDocument {
   created_at: string
 }
 
-// PDF Viewer Component - Direct Cloudinary PDF rendering
+// Category mapping for display
+const CATEGORY_MAPPING: Record<string, { code: string; name: string; description: string }> = {
+  'FPP': { code: 'FPP', name: 'Fall Prevention Plan', description: 'Safety procedures for work at height' },
+  'SWP': { code: 'SWP', name: 'Safe Work Procedures', description: 'General safety protocols and procedures' },
+  'PTW': { code: 'PTW', name: 'Permit to Work', description: 'Work authorization and safety permits' },
+  'RA': { code: 'RA', name: 'Risk Assessment', description: 'Hazard identification and risk evaluation' },
+  'SDS': { code: 'SDS', name: 'Safety Data Sheet', description: 'Chemical safety and handling information' },
+  'TBM': { code: 'TBM', name: 'Toolbox Meeting', description: 'Daily safety briefings and meetings' },
+  'VSS': { code: 'VSS', name: 'Vehicle Safety System', description: 'Vehicle and equipment safety checks' },
+  'MS': { code: 'MS', name: 'Method Statement', description: 'Detailed work procedures and specifications' }
+}
+
+// Helper function to get category display info
+const getCategoryInfo = (category: string) => {
+  return CATEGORY_MAPPING[category] || { code: category, name: category, description: '' }
+}
+
+// PDF Viewer Component - Handle Cloudinary PDF delivery restrictions
 const PDFViewer = ({ url, fileName }: { url: string; fileName: string }) => {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
-
-  // Optimize PDF URL for viewing with Cloudinary transformations
-  const optimizedUrl = React.useMemo(() => {
-    if (url.includes('cloudinary.com')) {
-      // Check if it's a raw resource type (needs conversion to image)
-      if (url.includes('/raw/upload/')) {
-        // Convert from raw to image with transformations
-        const parts = url.split('/raw/upload/')
-        if (parts.length === 2) {
-          // Convert to image resource type with PDF preview transformations
-          return `${parts[0]}/image/upload/pg_1,f_jpg,w_800,q_auto,fl_progressive/${parts[1]}`
-        }
-      } else if (url.includes('/image/upload/')) {
-        // Already image type, just add transformations
-        const parts = url.split('/upload/')
-        if (parts.length === 2) {
-          return `${parts[0]}/upload/pg_1,f_jpg,w_800,q_auto,fl_progressive/${parts[1]}`
-        }
-      }
-    }
-    return url
-  }, [url])
+  const [showFallback, setShowFallback] = React.useState(false)
 
   // Handle iframe load
   const handleLoad = () => {
@@ -84,25 +89,58 @@ const PDFViewer = ({ url, fileName }: { url: string; fileName: string }) => {
   const handleError = () => {
     setError('Failed to load PDF preview')
     setLoading(false)
+    setShowFallback(true)
   }
 
-  if (error) {
+  // Handle PDF preview with fallback for Cloudinary restrictions
+  const handlePreviewClick = () => {
+    // Try to open PDF in new tab first
+    const newWindow = window.open(url, '_blank')
+    if (!newWindow) {
+      // If popup blocked, show fallback message
+      setShowFallback(true)
+    }
+  }
+
+  if (error || showFallback) {
     return (
       <div className="flex items-center justify-center h-96 border rounded-lg bg-muted">
-        <div className="text-center">
-          <FileIcon className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground mb-2">Failed to load PDF preview</p>
-          <p className="text-xs text-muted-foreground mb-4">{error}</p>
-          <div className="flex gap-2 justify-center">
+        <div className="text-center max-w-md mx-auto p-6">
+          <FileIcon className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+          <h3 className="text-lg font-semibold mb-2">PDF Preview Not Available</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Due to Cloudinary security settings, PDF preview is not available. 
+            You can download or open the document in a new tab.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => window.open(url, '_blank')}
+              onClick={handlePreviewClick}
             >
               <Eye className="h-4 w-4 mr-2" />
               Open in new tab
             </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => {
+                const link = document.createElement('a')
+                link.href = url
+                link.download = fileName // fileName is already the file_name from props
+                link.target = '_blank'
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+              }}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download PDF
+            </Button>
           </div>
+          <p className="text-xs text-muted-foreground mt-4">
+            To enable PDF preview, contact your administrator to configure Cloudinary settings.
+          </p>
         </div>
       </div>
     )
@@ -114,7 +152,7 @@ const PDFViewer = ({ url, fileName }: { url: string; fileName: string }) => {
       <div className="flex flex-col sm:flex-row items-center justify-between p-3 sm:p-4 border-b bg-muted/50 gap-2">
         <div className="flex items-center space-x-2">
           <span className="text-sm text-muted-foreground">
-            PDF Preview - Use browser controls to navigate
+            PDF Preview - Loading document...
           </span>
         </div>
 
@@ -122,7 +160,7 @@ const PDFViewer = ({ url, fileName }: { url: string; fileName: string }) => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => window.open(url, '_blank')}
+            onClick={handlePreviewClick}
           >
             <Eye className="h-4 w-4 mr-2" />
             <span className="hidden sm:inline">Open in new tab</span>
@@ -142,24 +180,7 @@ const PDFViewer = ({ url, fileName }: { url: string; fileName: string }) => {
           </div>
         )}
         <div className="w-full">
-          {/* Try image preview first (faster loading) */}
-          <img
-            src={optimizedUrl}
-            alt={`${fileName} preview`}
-            className="border rounded-lg shadow-lg w-full max-w-4xl mx-auto"
-            style={{
-              height: 'auto',
-              maxHeight: '80vh',
-              display: loading ? 'none' : 'block'
-            }}
-            onLoad={handleLoad}
-            onError={() => {
-              // If image preview fails, fall back to iframe
-              setLoading(false)
-            }}
-          />
-          
-          {/* Fallback iframe for full PDF viewing */}
+          {/* PDF iframe for direct viewing */}
           <iframe
             src={url}
             className="border rounded-lg shadow-lg w-full"
@@ -167,7 +188,7 @@ const PDFViewer = ({ url, fileName }: { url: string; fileName: string }) => {
               width: '100%',
               height: '80vh',
               minHeight: '600px',
-              display: 'none' // Hidden by default, shown if image fails
+              display: loading ? 'none' : 'block'
             }}
             title={fileName}
             onLoad={handleLoad}
@@ -350,59 +371,33 @@ const DocumentToolbar = ({
   const [showMetadata, setShowMetadata] = React.useState(false)
 
   return (
-    <div className="flex items-center justify-between p-4 border-b bg-background">
-      <div className="flex items-center space-x-2">
+    <div className="flex items-center justify-between p-3 border-b bg-background">
+      <div className="flex items-center space-x-1">
         {onBack && (
           <Button variant="outline" size="sm" onClick={onBack} className="lg:hidden">
             <ChevronLeft className="h-4 w-4 mr-1" />
             Back
           </Button>
         )}
-        <Button variant="outline" size="sm" onClick={onPrevious} disabled={!hasPrevious} className="hidden sm:flex">
-          <ChevronLeft className="h-4 w-4 mr-1" />
-          Previous
+        <Button variant="outline" size="sm" onClick={onPrevious} disabled={!hasPrevious}>
+          <ChevronLeft className="h-4 w-4" />
         </Button>
-        <Button variant="outline" size="sm" onClick={onNext} disabled={!hasNext} className="hidden sm:flex">
-          Next
-          <ChevronRight className="h-4 w-4 ml-1" />
+        <Button variant="outline" size="sm" onClick={onNext} disabled={!hasNext}>
+          <ChevronRight className="h-4 w-4" />
         </Button>
-        <div className="flex sm:hidden">
-          <Button variant="outline" size="sm" onClick={onPrevious} disabled={!hasPrevious}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="sm" onClick={onNext} disabled={!hasNext}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
       </div>
 
-      <div className="flex items-center space-x-1 sm:space-x-2">
-        <Button variant="outline" size="sm" onClick={onDownload} className="hidden sm:flex">
-          <Download className="h-4 w-4 mr-2" />
-          Download
-        </Button>
-        <Button variant="outline" size="sm" onClick={onDownload} className="sm:hidden">
+      <div className="flex items-center space-x-1">
+        <Button variant="outline" size="sm" onClick={onDownload}>
           <Download className="h-4 w-4" />
         </Button>
-        <Button variant="outline" size="sm" onClick={() => window.print()} className="hidden sm:flex">
-          <Printer className="h-4 w-4 mr-2" />
-          Print
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => window.print()} className="sm:hidden">
+        <Button variant="outline" size="sm" onClick={() => window.print()}>
           <Printer className="h-4 w-4" />
         </Button>
-        <Button variant="outline" size="sm" onClick={() => setShowMetadata(!showMetadata)} className="hidden sm:flex">
-          <Info className="h-4 w-4 mr-2" />
-          Info
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => setShowMetadata(!showMetadata)} className="sm:hidden">
+        <Button variant="outline" size="sm" onClick={() => setShowMetadata(!showMetadata)}>
           <Info className="h-4 w-4" />
         </Button>
-        <Button variant="outline" size="sm" onClick={onDelete} className="hidden sm:flex">
-          <Trash2 className="h-4 w-4 mr-2" />
-          Delete
-        </Button>
-        <Button variant="outline" size="sm" onClick={onDelete} className="sm:hidden">
+        <Button variant="outline" size="sm" onClick={onDelete}>
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
@@ -415,29 +410,88 @@ const FolderCard = ({
   category, 
   count, 
   isSelected, 
-  onClick 
+  onClick,
+  onEdit,
+  onDelete
 }: { 
   category: string
   count: number
   isSelected: boolean
-  onClick: () => void 
+  onClick: () => void
+  onEdit?: () => void
+  onDelete?: () => void
 }) => {
+  const categoryInfo = getCategoryInfo(category)
+  
   return (
     <Card 
       className={cn(
-        "p-4 cursor-pointer transition-colors hover:bg-muted/50",
+        "p-3 transition-colors hover:bg-muted/50 group",
         isSelected && "bg-primary/10 border-primary"
       )}
-      onClick={onClick}
     >
       <div className="flex items-center space-x-3">
-        <div className="p-2 bg-primary/10 rounded-lg">
-          <StyledFolderIcon size={24} />
+        <div 
+          className="flex-1 min-w-0 cursor-pointer"
+          onClick={onClick}
+        >
+          <div className="flex items-center space-x-3">
+            <div className="p-1.5 bg-primary/10 rounded-md">
+              <FileText className="h-5 w-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="font-medium text-sm">{categoryInfo.code}</h3>
+                <span className="text-xs text-muted-foreground">•</span>
+                <h4 className="font-medium text-sm break-words">{categoryInfo.name}</h4>
+              </div>
+              <p className="text-xs text-muted-foreground">{count} doc{count !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="font-medium truncate">{category}</h3>
-          <p className="text-sm text-muted-foreground">{count} document{count !== 1 ? 's' : ''}</p>
-        </div>
+        
+        {/* Three-dot menu for category actions */}
+        {(onEdit || onDelete) && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Category Actions</DropdownMenuLabel>
+              {onEdit && (
+                <DropdownMenuItem onClick={(e) => {
+                  e.stopPropagation()
+                  onEdit()
+                }}>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit Category
+                </DropdownMenuItem>
+              )}
+              {onDelete && (
+                <>
+                  {onEdit && <DropdownMenuSeparator />}
+                  <DropdownMenuItem 
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDelete()
+                    }}
+                    className="text-red-600"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Category
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     </Card>
   )
@@ -489,21 +543,24 @@ export default function CompanyDocumentsPage() {
 
   const downloadDocument = async (doc: CompanyDocument) => {
     try {
-      // For Cloudinary URLs, add fl_attachment flag to force download
+      // For Cloudinary URLs, try different approaches based on file type
       let downloadUrl = doc.cloudinary_url
       
       if (downloadUrl.includes('cloudinary.com')) {
-        // Add fl_attachment flag to force download instead of preview
-        const parts = downloadUrl.split('/upload/')
-        if (parts.length === 2) {
-          downloadUrl = `${parts[0]}/upload/fl_attachment/${parts[1]}`
+        // For PDFs, try to add fl_attachment flag to force download
+        if (doc.file_name?.toLowerCase().endsWith('.pdf')) {
+          const parts = downloadUrl.split('/upload/')
+          if (parts.length === 2) {
+            downloadUrl = `${parts[0]}/upload/fl_attachment/${parts[1]}`
+          }
         }
+        // For other files, use original URL
       }
 
       // Create a download link directly
       const link = document.createElement('a')
       link.href = downloadUrl
-      link.download = doc.file_name || doc.name
+      link.download = doc.file_name || doc.name // Use file_name (original filename) first, fallback to name
       link.target = '_blank' // Open in new tab as fallback
       document.body.appendChild(link)
       link.click()
@@ -569,25 +626,25 @@ export default function CompanyDocumentsPage() {
         isLoading={deleteMutation.isPending}
       />
 
-      <div className="flex h-[calc(100vh-4rem)]">
-        {/* Sidebar */}
-        <div className="w-80 border-r bg-muted/30 flex flex-col hidden lg:flex">
-          <div className="p-6 border-b">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold">Company Documents</h2>
+      <div className="flex flex-col lg:flex-row h-[calc(100vh-4rem)]">
+        {/* Sidebar - Desktop */}
+        <div className="w-full lg:w-80 border-r bg-muted/30 flex flex-col">
+          <div className="p-4 border-b">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-bold">Documents</h2>
               {canManageJobs() && (
                 <Button onClick={() => setUploadModalOpen(true)} size="sm">
-                  <Upload className="h-4 w-4 mr-2" />
+                  <Upload className="h-4 w-4 mr-1" />
                   Upload
                 </Button>
               )}
             </div>
-            <p className="text-sm text-muted-foreground">
-              Browse and manage company-wide documents organized by category.
+            <p className="text-xs text-muted-foreground">
+              Browse documents by category
             </p>
           </div>
 
-          <ScrollArea className="flex-1 p-4">
+          <ScrollArea className="flex-1 p-3">
             {isLoading ? (
               <DataTableSkeleton columnCount={1} rowCount={6} />
             ) : (
@@ -602,50 +659,19 @@ export default function CompanyDocumentsPage() {
                       setSelectedCategory(category)
                       setSelectedDocument(null)
                     }}
+                    onEdit={() => {
+                      // TODO: Implement category edit functionality
+                      toast.success(`Edit functionality for ${category} will be implemented soon.`)
+                    }}
+                    onDelete={() => {
+                      // TODO: Implement category delete functionality
+                      toast.error(`Delete functionality for ${category} will be implemented soon.`)
+                    }}
                   />
                 ))}
-                {canManageJobs() && (
-                  <Card
-                    className="flex cursor-pointer flex-col items-center justify-center gap-2 border-2 border-dashed bg-muted/50 p-4 text-muted-foreground transition-colors hover:border-primary/80 hover:bg-muted"
-                    onClick={() => setUploadModalOpen(true)}
-                  >
-                    <FolderPlus className="h-6 w-6" />
-                    <p className="text-center text-sm font-medium">Create New Folder</p>
-                  </Card>
-                )}
               </div>
             )}
           </ScrollArea>
-        </div>
-
-        {/* Mobile Category Selector */}
-        <div className="lg:hidden p-4 border-b bg-muted/30">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold">Company Documents</h2>
-            {canManageJobs() && (
-              <Button onClick={() => setUploadModalOpen(true)} size="sm">
-                <Upload className="h-4 w-4 mr-2" />
-                Upload
-              </Button>
-            )}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {Object.entries(documentsByCategory).map(([category, docs]) => (
-              <Button
-                key={category}
-                variant={selectedCategory === category ? "default" : "outline"}
-                size="sm"
-                onClick={() => {
-                  setSelectedCategory(category)
-                  setSelectedDocument(null)
-                }}
-                className="justify-start"
-              >
-                <StyledFolderIcon size={16} />
-                {category} ({docs.length})
-              </Button>
-            ))}
-          </div>
         </div>
 
         {/* Main Content Area */}
@@ -654,39 +680,96 @@ export default function CompanyDocumentsPage() {
             <>
               {/* Document List */}
               {!selectedDocument && (
-                <div className="p-6">
+                <div className="p-4">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-semibold">{selectedCategory} Documents</h3>
-                    <Badge variant="secondary">{selectedDocuments.length} documents</Badge>
+                    <div>
+                      <h3 className="text-lg font-semibold">
+                        {getCategoryInfo(selectedCategory).name}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        {getCategoryInfo(selectedCategory).description}
+                      </p>
+                    </div>
+                    <Badge variant="secondary">{selectedDocuments.length}</Badge>
                   </div>
                   
-                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
                     {selectedDocuments.map((doc) => (
                       <Card 
                         key={doc.id} 
-                        className="p-4 cursor-pointer hover:bg-muted/50 transition-colors"
-                        onClick={() => setSelectedDocument(doc)}
+                        className="p-4 hover:bg-muted/50 transition-colors group min-h-[100px]"
                       >
-                        <div className="flex items-center space-x-3">
-                          <div className="flex-shrink-0">
-                            {doc.file_name.toLowerCase().endsWith('.pdf') ? (
-                              <FileText className="h-8 w-8 text-red-500" />
-                            ) : /\.(jpg|jpeg|png|gif)$/i.test(doc.file_name) ? (
-                              <ImageIcon className="h-8 w-8 text-blue-500" />
-                            ) : (
-                              <FileIcon className="h-8 w-8 text-gray-500" />
-                            )}
+                        <div className="flex flex-col space-y-3">
+                          <div 
+                            className="flex-1 cursor-pointer"
+                            onClick={() => setSelectedDocument(doc)}
+                          >
+                            <div className="flex items-start space-x-3">
+                              <div className="flex-shrink-0 mt-1">
+                                {doc.file_name.toLowerCase().endsWith('.pdf') ? (
+                                  <FileText className="h-6 w-6 text-red-500" />
+                                ) : /\.(jpg|jpeg|png|gif)$/i.test(doc.file_name) ? (
+                                  <ImageIcon className="h-6 w-6 text-blue-500" />
+                                ) : (
+                                  <FileIcon className="h-6 w-6 text-gray-500" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0 space-y-2">
+                                <h4 className="text-sm font-medium break-words leading-tight">{doc.name}</h4>
+                                <p className="text-xs text-muted-foreground break-words leading-tight">
+                                  {doc.file_name}
+                                </p>
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <h4 className="text-sm font-medium truncate">{doc.name}</h4>
-                            <p className="text-sm text-muted-foreground truncate">
-                              {doc.file_name}
-                            </p>
-                            {doc.description && (
-                              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                {doc.description}
-                              </p>
-                            )}
+                          
+                          {/* Three-dot menu */}
+                          <div className="flex justify-end">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuItem 
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setSelectedDocument(doc)
+                                }}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                View/Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  downloadDocument(doc)
+                                }}
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Download
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setSelectedDocId(doc.id)
+                                  setConfirmOpen(true)
+                                }}
+                                className="text-red-600"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </div>
                       </Card>
@@ -709,11 +792,11 @@ export default function CompanyDocumentsPage() {
                     onBack={() => setSelectedDocument(null)}
                   />
                   
-                  <ScrollArea className="flex-1">
-                    <div className="p-4 sm:p-6">
+                  <div className="flex-1 overflow-auto">
+                    <div className="p-3">
                       <DocumentPreview document={selectedDocument} />
                     </div>
-                  </ScrollArea>
+                  </div>
                 </div>
               )}
             </>
@@ -721,12 +804,12 @@ export default function CompanyDocumentsPage() {
 
           {/* Empty State */}
           {!selectedCategory && (
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex-1 flex items-center justify-center p-4">
               <div className="text-center">
-                <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-lg font-semibold mb-2">Select a Category</h3>
-                <p className="text-muted-foreground">
-                  Choose a document category from the sidebar to view documents.
+                <FileText className="h-8 w-8 mx-auto mb-3 text-muted-foreground" />
+                <h3 className="text-base font-semibold mb-2">Select a Category</h3>
+                <p className="text-sm text-muted-foreground">
+                  Choose a category to view documents
                 </p>
               </div>
             </div>

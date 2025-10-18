@@ -67,6 +67,16 @@ const getNavData = (user: any) => {
       title: "Company Documents",
       url: "/company-documents",
       icon: FileText,
+      items: [
+        {
+          title: "All Documents",
+          url: "/company-documents",
+        },
+        {
+          title: "Categories",
+          url: "/company-documents/categories",
+        },
+      ],
     },
     {
       title: "Floor Plans",

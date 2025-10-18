@@ -206,6 +206,15 @@ export const companyDocumentsApi = {
   deleteDocument: (docId: string) => api.delete(`/company-documents/${docId}`),
 }
 
+export const documentCategoriesApi = {
+  getCategories: () => api.get("/company-documents/categories/").then(res => res.data),
+  createCategory: (categoryData: { code: string; name: string; description?: string; color?: string }) => 
+    api.post("/company-documents/categories/", categoryData).then(res => res.data),
+  updateCategory: (categoryId: string, categoryData: { code?: string; name?: string; description?: string; color?: string }) => 
+    api.put(`/company-documents/categories/${categoryId}`, categoryData).then(res => res.data),
+  deleteCategory: (categoryId: string) => api.delete(`/company-documents/categories/${categoryId}`).then(res => res.data),
+}
+
 export const locationsApi = {
   getLocations: (params?: { page?: number; per_page?: number; search?: string }) => 
     api.get<PaginatedResponse<Location>>("/locations/", { params }).then(res => res.data),
