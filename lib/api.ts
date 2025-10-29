@@ -126,8 +126,13 @@ export interface JobDetail {
   report_date?: string | null
   inspection_date?: string | null
   repair_schedule?: string | null
+  repair_schedule_start?: string | null
+  repair_schedule_end?: string | null
   ultra_schedule?: string | null
+  ultra_schedule_start?: string | null
+  ultra_schedule_end?: string | null
   repair_completion?: string | null
+  date_remarks?: string | null
   resident_number?: string | null
   created_at?: string
   updated_at?: string

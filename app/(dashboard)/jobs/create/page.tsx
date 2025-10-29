@@ -63,13 +63,13 @@ const formSchema = z.object({
   block_no: z.string().min(1, "Block number is required"),
   unit_no: z.string().min(1, "Unit number is required"),
   resident_number: z.string().min(1, "Resident number is required"),
-  area: z.string().min(1, "Main area is required"),
+  area: z.string().optional(),
   
   // Step 3: Schedule & Dates
   report_date: z.string(),
-  inspection_date: z.string().min(1, "Inspection date is required"),
-  repair_schedule_start: z.string().min(1, "Repair schedule start is required"),
-  repair_schedule_end: z.string().min(1, "Repair schedule end is required"),
+  inspection_date: z.string().optional(),
+  repair_schedule_start: z.string().optional(),
+  repair_schedule_end: z.string().optional(),
   ultra_schedule_start: z.string().optional(),
   ultra_schedule_end: z.string().optional(),
   repair_completion: z.string().optional(),
@@ -184,18 +184,18 @@ export default function CreateJobPage() {
     if (repairScheduleStart) {
       const repairStartDate = new Date(repairScheduleStart)
       const repairEndDate = new Date(repairStartDate)
-      repairEndDate.setDate(repairEndDate.getDate() + 7) // Add 7 days for end date
+      repairEndDate.setDate(repairEndDate.getDate() + 3) // Add 3 days for repair duration
       
       // Set repair schedule end if not already set
       if (!repairScheduleEnd) {
         form.setValue("repair_schedule_end", repairEndDate.toISOString().split("T")[0])
       }
       
-      // Auto-calculate ultra schedule (7 days after repair schedule end)
+      // Auto-calculate ultra schedule (3 days after repair schedule end)
       const ultraStartDate = new Date(repairEndDate)
       ultraStartDate.setDate(ultraStartDate.getDate() + 1) // Start day after repair ends
       const ultraEndDate = new Date(ultraStartDate)
-      ultraEndDate.setDate(ultraEndDate.getDate() + 7) // 7-day range for ultra
+      ultraEndDate.setDate(ultraEndDate.getDate() + 3) // 3-day range for ultra
       
       form.setValue("ultra_schedule_start", ultraStartDate.toISOString().split("T")[0])
       form.setValue("ultra_schedule_end", ultraEndDate.toISOString().split("T")[0])
@@ -267,9 +267,10 @@ export default function CreateJobPage() {
     if (currentStep === 0) {
       fieldsToValidate = ["title", "priority"]
     } else if (currentStep === 1) {
-      fieldsToValidate = ["location", "tc", "block_no", "unit_no", "resident_number", "area"]
+      fieldsToValidate = ["location", "tc", "block_no", "unit_no", "resident_number"]
     } else if (currentStep === 2) {
-      fieldsToValidate = ["inspection_date", "repair_schedule_start", "repair_schedule_end"]
+      // No required fields in step 3 (Schedule & Dates) - all optional
+      fieldsToValidate = []
     }
 
     const result = await form.trigger(fieldsToValidate)

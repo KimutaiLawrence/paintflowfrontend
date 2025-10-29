@@ -48,6 +48,7 @@ const formSchema = z.object({
   ultra_schedule_start: z.string().optional(),
   ultra_schedule_end: z.string().optional(),
   repair_completion: z.string().optional(),
+  date_remarks: z.string().optional(),
   status: z.string().optional(),
   areas: z.array(z.object({
     name: z.string().min(1, "Area name is required")
@@ -87,6 +88,7 @@ export default function EditJobPage() {
       ultra_schedule_start: "",
       ultra_schedule_end: "",
       repair_completion: "",
+      date_remarks: "",
       status: "",
       areas: [],
     },
@@ -112,6 +114,7 @@ export default function EditJobPage() {
         ultra_schedule_start: job.ultra_schedule_start ? job.ultra_schedule_start.split('T')[0] : "",
         ultra_schedule_end: job.ultra_schedule_end ? job.ultra_schedule_end.split('T')[0] : "",
         repair_completion: job.repair_completion ? job.repair_completion.split('T')[0] : "",
+        date_remarks: job.date_remarks || "",
         status: job.status || "",
         areas: job.areas ? job.areas.map(area => ({ name: area.name })) : [],
       })
@@ -443,6 +446,23 @@ export default function EditJobPage() {
                   )}
                 />
               </div>
+
+              <FormField
+                control={form.control}
+                name="date_remarks"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date Remarks</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="Add remarks for date changes..."
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div>
