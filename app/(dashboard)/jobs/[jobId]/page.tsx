@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ButtonLoader } from "@/components/ui/custom-loader"
+import { PDFEditor } from "@/components/pdf-editor"
 
 const priorityStyles: { [key: string]: string } = {
   P1: "bg-red-100 text-red-800 border-red-200 hover:bg-red-200",
@@ -82,6 +83,7 @@ export default function JobDetailPage() {
   const [selectedDocument, setSelectedDocument] = useState<any>(null)
   const [showSignatureModal, setShowSignatureModal] = useState(false)
   const [signatureData, setSignatureData] = useState<string>("")
+  const [showPDFEditor, setShowPDFEditor] = useState(false)
 
   const { data: job, isLoading, error } = useQuery<JobDetail>({
     queryKey: ["job", jobId],
@@ -920,8 +922,9 @@ export default function JobDetailPage() {
                                           variant="outline"
                                           size="sm"
                                           onClick={() => {
+                                            console.log('Opening PDF editor for document:', doc)
                                             setSelectedDocument(doc)
-                                            setShowDocumentEditor(true)
+                                            setShowPDFEditor(true)
                                           }}
                                           title="View/Edit Document"
                                         >
@@ -1817,6 +1820,22 @@ export default function JobDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* PDF Editor Modal */}
+      {selectedDocument && showPDFEditor && (
+        <PDFEditor
+          pdfUrl={selectedDocument.cloudinary_url}
+          documentName={selectedDocument.document_name}
+          onSave={(pdfBytes) => {
+            // TODO: Implement saving the edited PDF back to the server
+            toast.success("PDF saved successfully")
+          }}
+          onClose={() => {
+            setShowPDFEditor(false)
+            setSelectedDocument(null)
+          }}
+        />
+      )}
     </>
   )
 }

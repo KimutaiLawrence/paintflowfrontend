@@ -147,7 +147,7 @@ export default function LoginPage() {
             variant="outline"
             className="w-full"
             onClick={() => {
-              window.location.href = `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000/api'}/auth/google/login`
+              window.location.href = `${process.env.NEXT_PUBLIC_API_URL || 'https://paintflowbackendlive.onrender.com/api'}/auth/google/login`
             }}
           >
             <FaGoogle className="mr-2 h-4 w-4" />

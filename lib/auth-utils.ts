@@ -8,7 +8,7 @@ export interface TokenValidationResult {
 
 export async function validateToken(token: string): Promise<TokenValidationResult> {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000/api'}/auth/me`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://paintflowbackendlive.onrender.com/api'}/auth/me`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
