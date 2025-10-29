@@ -18,6 +18,7 @@ import { clientsApi } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { useState } from "react"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { UserPermissions } from "@/components/shared/user-permissions"
 
 export type Client = {
   id: string
@@ -26,6 +27,7 @@ export type Client = {
   phone: string
   email: string
   address: string
+  role?: string
 }
 
 function ActionsCell({ client }: { client: Client }) {
@@ -145,6 +147,16 @@ export const columns: ColumnDef<Client>[] = [
     accessorKey: "phone",
     header: "Phone",
     cell: ({ row }) => <div>{row.getValue("phone") || "—"}</div>,
+  },
+  {
+    id: "permissions",
+    header: "Permissions",
+    cell: ({ row }) => {
+      const client = row.original
+      return <UserPermissions userId={client.id} userRole={client.role || "client"} />
+    },
+    enableSorting: false,
+    enableHiding: false,
   },
   {
     id: "actions",

@@ -15,6 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { User } from "@/lib/api"
 import Link from "next/link"
+import { UserPermissions } from "@/components/shared/user-permissions"
 
 // Role display helper
 const getRoleDisplay = (role: string) => {
@@ -87,6 +88,16 @@ export const columns: ColumnDef<User>[] = [
     accessorKey: "email",
     header: "Email",
     cell: ({ row }) => <div>{row.getValue("email")}</div>,
+  },
+  {
+    id: "permissions",
+    header: "Permissions",
+    cell: ({ row }) => {
+      const user = row.original
+      return <UserPermissions userId={user.id} userRole={user.role} />
+    },
+    enableSorting: false,
+    enableHiding: false,
   },
   {
     id: "actions",

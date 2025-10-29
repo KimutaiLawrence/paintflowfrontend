@@ -4,6 +4,7 @@ import React, { useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { jobsApi, JobDetail, sitePhotosApi, jobSafetyDocsApi, jobInspectionsApi, companyDocumentsApi, documentCategoriesApi, jobFloorPlansApi, floorPlanTemplatesApi, jobEditableDocsApi, type SitePhoto, type JobSafetyDocument, type JobInspection } from "@/lib/api"
+import { usePreferences } from "@/hooks/use-preferences"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -60,6 +61,7 @@ export default function JobDetailPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const [isConfirmOpen, setConfirmOpen] = useState(false)
+  const { preferences } = usePreferences()
   
   // Tab-specific state
   const [showSitePhotoDialog, setShowSitePhotoDialog] = useState(false)
@@ -141,6 +143,62 @@ export default function JobDetailPage() {
     queryKey: ["document-categories"],
     queryFn: documentCategoriesApi.getCategories,
   })
+
+  // Sort categories to prioritize required safety documents
+  const sortedCategories = React.useMemo(() => {
+    if (!categories) return []
+    
+    const userOrder = preferences.safety_documents_order || ['PTW', 'TBM', 'WAH', 'VSS']
+    const priorityCategories: any[] = []
+    const otherCategories: any[] = []
+    
+    categories.forEach((category: any) => {
+      if (userOrder.includes(category.code)) {
+        priorityCategories.push(category)
+      } else {
+        otherCategories.push(category)
+      }
+    })
+    
+    // Sort priority categories by user-defined order
+    priorityCategories.sort((a, b) => {
+      return userOrder.indexOf(a.code) - userOrder.indexOf(b.code)
+    })
+    
+    // Sort other categories alphabetically
+    otherCategories.sort((a, b) => a.name.localeCompare(b.name))
+    
+    return [...priorityCategories, ...otherCategories]
+  }, [categories, preferences.safety_documents_order])
+
+  // Sort company documents to prioritize required safety documents
+  const sortedCompanyDocuments = React.useMemo(() => {
+    if (!companyDocuments) return []
+    
+    const userOrder = preferences.safety_documents_order || ['PTW', 'TBM', 'WAH', 'VSS']
+    const priorityDocs: any[] = []
+    const otherDocs: any[] = []
+    
+    companyDocuments.forEach((doc: any) => {
+      if (userOrder.includes(doc.category)) {
+        priorityDocs.push(doc)
+      } else {
+        otherDocs.push(doc)
+      }
+    })
+    
+    // Sort priority documents by user-defined order, then by name
+    priorityDocs.sort((a, b) => {
+      const categoryOrder = userOrder.indexOf(a.category) - userOrder.indexOf(b.category)
+      if (categoryOrder !== 0) return categoryOrder
+      return a.name.localeCompare(b.name)
+    })
+    
+    // Sort other documents alphabetically by name
+    otherDocs.sort((a, b) => a.name.localeCompare(b.name))
+    
+    return [...priorityDocs, ...otherDocs]
+  }, [companyDocuments, preferences.safety_documents_order])
 
   const { data: floorPlanTemplates } = useQuery({
     queryKey: ["floor-plan-templates"],
@@ -495,17 +553,25 @@ export default function JobDetailPage() {
                                 <SelectValue placeholder="Select document type" />
                               </SelectTrigger>
                               <SelectContent className="max-h-48 overflow-y-auto">
-                                {categories?.map((category: any) => (
-                                  <SelectItem key={category.id} value={category.code}>
-                                    <div className="flex items-center space-x-2 py-1">
-                                      <div 
-                                        className="w-2 h-2 rounded-full flex-shrink-0" 
-                                        style={{ backgroundColor: category.color || '#3B82F6' }}
-                                      />
-                                      <span className="truncate">{category.code} - {category.name}</span>
-                                    </div>
-                                  </SelectItem>
-                                ))}
+                                {sortedCategories?.map((category: any) => {
+                                  const isPriority = ['PTW', 'TBM', 'WAH', 'VSS'].includes(category.code)
+                                  return (
+                                    <SelectItem key={category.id} value={category.code}>
+                                      <div className="flex items-center space-x-2 py-1">
+                                        <div 
+                                          className="w-2 h-2 rounded-full flex-shrink-0" 
+                                          style={{ backgroundColor: category.color || '#3B82F6' }}
+                                        />
+                                        <span className="truncate">{category.code} - {category.name}</span>
+                                        {isPriority && (
+                                          <Badge variant="secondary" className="text-xs px-1 py-0 ml-1">
+                                            Required
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </SelectItem>
+                                  )
+                                })}
                               </SelectContent>
                             </Select>
                           </div>
@@ -516,17 +582,27 @@ export default function JobDetailPage() {
                                 <SelectValue placeholder="Select from company documents" />
                               </SelectTrigger>
                               <SelectContent className="max-h-48 overflow-y-auto">
-                                {companyDocuments
+                                {sortedCompanyDocuments
                                   ?.filter((doc: any) => !safetyDocType || doc.category === safetyDocType)
-                                  ?.map((doc: any) => (
-                                  <SelectItem key={doc.id} value={doc.id}>
-                                      <div className="flex flex-col py-1 max-w-xs">
-                                        <span className="font-medium truncate">{doc.name}</span>
-                                        <span className="text-sm text-muted-foreground truncate">{doc.category} - {doc.description}</span>
-                                      </div>
-                                  </SelectItem>
-                                ))}
-                                {(!companyDocuments || companyDocuments.filter((doc: any) => !safetyDocType || doc.category === safetyDocType).length === 0) && (
+                                  ?.map((doc: any) => {
+                                    const isPriority = ['PTW', 'TBM', 'WAH', 'VSS'].includes(doc.category)
+                                    return (
+                                      <SelectItem key={doc.id} value={doc.id}>
+                                        <div className="flex flex-col py-1 max-w-xs">
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-medium truncate">{doc.name}</span>
+                                            {isPriority && (
+                                              <Badge variant="secondary" className="text-xs px-1 py-0">
+                                                Required
+                                              </Badge>
+                                            )}
+                                          </div>
+                                          <span className="text-sm text-muted-foreground truncate">{doc.category} - {doc.description}</span>
+                                        </div>
+                                      </SelectItem>
+                                    )
+                                  })}
+                                {(!sortedCompanyDocuments || sortedCompanyDocuments.filter((doc: any) => !safetyDocType || doc.category === safetyDocType).length === 0) && (
                                   <div className="p-2 text-sm text-muted-foreground">
                                     {safetyDocType ? `No documents found for category ${safetyDocType}` : "No company documents available"}
                                   </div>

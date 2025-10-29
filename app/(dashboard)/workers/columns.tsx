@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { MoreHorizontal, Mail, Phone, Briefcase } from "lucide-react"
 import Link from "next/link"
+import { UserPermissions } from "@/components/shared/user-permissions"
 
 export interface Worker {
   id: string
@@ -151,6 +152,17 @@ export const columns: ColumnDef<Worker>[] = [
         </span>
       )
     },
+    size: 120,
+  },
+  {
+    id: "permissions",
+    header: "Permissions",
+    cell: ({ row }) => {
+      const worker = row.original
+      return <UserPermissions userId={worker.id} userRole={worker.role} />
+    },
+    enableSorting: false,
+    enableHiding: false,
     size: 120,
   },
   {

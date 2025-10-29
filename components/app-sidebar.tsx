@@ -130,6 +130,14 @@ const getNavData = (user: any) => {
           title: "Job Areas",
           url: "/job-areas",
         },
+        {
+          title: "Audit Trail",
+          url: "/admin/audit-trail",
+        },
+        {
+          title: "Roles & Permissions",
+          url: "/admin/roles",
+        },
       ],
     })
   }

@@ -7,38 +7,48 @@ import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import { PlusCircle } from "lucide-react"
 import { columns } from "./columns"
-import { DataTable } from "@/components/shared/data-table"
-import { DataTableSkeleton } from "@/components/shared/data-table-skeleton"
+import { ServerDataTable } from "@/components/shared/server-data-table"
 import { CreateUserModal } from "@/components/modals/create-user-modal"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { useToast } from "@/hooks/use-toast"
+import { normalizePaginatedResponse } from "@/lib/pagination"
 
 export default function UserManagementPage() {
   const { canManageUsers, isClient } = useAuth()
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(10)
+  const [search, setSearch] = useState("")
 
   // Allow both managers and clients to view users
   const canViewUsers = canManageUsers() || isClient()
 
   const { data: usersData, isLoading } = useQuery({
-    queryKey: ["users"],
-    queryFn: usersApi.getUsers,
+    queryKey: ["users", page, perPage, search],
+    queryFn: () => usersApi.getUsers({ page, per_page: perPage, search }),
     enabled: canViewUsers,
   })
+
+  const paginatedData = normalizePaginatedResponse(usersData || {})
 
   const deleteMutation = useMutation({
     mutationFn: (userId: string) => usersApi.deleteUser(userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] })
       toast.success("User deleted successfully.")
+      setDeleteUserId(null)
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || "Failed to delete user.")
     },
   })
 
-  const users = usersData || []
+  const handleDelete = (userId: string) => {
+    setDeleteUserId(userId)
+  }
 
   if (!canViewUsers) {
     return (
@@ -71,26 +81,35 @@ export default function UserManagementPage() {
         )}
       </div>
 
-      {isLoading ? (
-        <DataTableSkeleton columnCount={columns.length} />
-      ) : (
-        <DataTable
-          columns={columns}
-          data={users}
-          filterColumn="full_name"
-          meta={{
-            onDelete: canManageUsers() ? (userId: string) => {
-              if (confirm("Are you sure you want to delete this user?")) {
-                deleteMutation.mutate(userId)
-              }
-            } : undefined
-          }}
-        />
-      )}
+      <ServerDataTable
+        columns={columns}
+        data={paginatedData.data}
+        total={paginatedData.total}
+        page={page}
+        perPage={perPage}
+        onPageChange={setPage}
+        onPerPageChange={setPerPage}
+        onSearchChange={(value) => {
+          setSearch(value)
+          setPage(1)
+        }}
+        onDelete={canManageUsers() ? handleDelete : undefined}
+        filterPlaceholder="Search by name, username, or email..."
+        isLoading={isLoading}
+      />
 
       <CreateUserModal
         open={showCreateModal}
         onOpenChange={setShowCreateModal}
+      />
+
+      <ConfirmDialog
+        isOpen={!!deleteUserId}
+        onClose={() => setDeleteUserId(null)}
+        onConfirm={() => deleteUserId && deleteMutation.mutate(deleteUserId)}
+        title="Delete User"
+        description="Are you sure you want to delete this user? This action cannot be undone."
+        isLoading={deleteMutation.isPending}
       />
     </div>
   )

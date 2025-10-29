@@ -10,6 +10,8 @@ import { columns, type Worker } from "./columns"
 import { workersApi } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/hooks/use-auth"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { normalizePaginatedResponse } from "@/lib/pagination"
 
 export default function WorkersPage() {
   const router = useRouter()
@@ -20,6 +22,7 @@ export default function WorkersPage() {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(10)
   const [search, setSearch] = useState("")
+  const [deleteWorkerId, setDeleteWorkerId] = useState<string | null>(null)
 
   // Fetch workers with pagination
   const { data, isLoading } = useQuery({
@@ -34,6 +37,8 @@ export default function WorkersPage() {
     },
   })
 
+  const paginatedData = normalizePaginatedResponse(data || {})
+
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (workerId: string) => {
@@ -42,6 +47,7 @@ export default function WorkersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workers"] })
       toast.success("Success", { description: "Worker deleted successfully" })
+      setDeleteWorkerId(null)
     },
     onError: (error: any) => {
       const errorMessage = error.response?.data?.message || error.message || "Failed to delete worker"
@@ -49,10 +55,8 @@ export default function WorkersPage() {
     },
   })
 
-  const handleDelete = async (workerId: string) => {
-    if (confirm("Are you sure you want to deactivate this worker?")) {
-      await deleteMutation.mutateAsync(workerId)
-    }
+  const handleDelete = (workerId: string) => {
+    setDeleteWorkerId(workerId)
   }
 
   return (
@@ -72,18 +76,28 @@ export default function WorkersPage() {
 
       <ServerDataTable
         columns={columns}
-        data={data?.data || []}
-        total={data?.total || 0}
+        data={paginatedData.data}
+        total={paginatedData.total}
         page={page}
         perPage={perPage}
         onPageChange={setPage}
         onPerPageChange={setPerPage}
-        onSearchChange={setSearch}
+        onSearchChange={(value) => {
+          setSearch(value)
+          setPage(1)
+        }}
+        onDelete={canDelete() ? handleDelete : undefined}
         filterPlaceholder="Search workers by name, email, or username..."
         isLoading={isLoading}
-        meta={{
-          onDelete: canDelete() ? handleDelete : undefined
-        }}
+      />
+
+      <ConfirmDialog
+        isOpen={!!deleteWorkerId}
+        onClose={() => setDeleteWorkerId(null)}
+        onConfirm={() => deleteWorkerId && deleteMutation.mutate(deleteWorkerId)}
+        title="Delete Worker"
+        description="Are you sure you want to delete this worker? This action cannot be undone."
+        isLoading={deleteMutation.isPending}
       />
     </div>
   )

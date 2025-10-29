@@ -35,6 +35,10 @@ export default function JobsPage() {
     mutationFn: (id: string) => jobsApi.deleteJob(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jobs"] })
+      // Refresh notifications after job deletion
+      if ((window as any).refreshNotifications) {
+        (window as any).refreshNotifications()
+      }
       toast.success("Job deleted successfully")
       setDeleteId(null)
     },

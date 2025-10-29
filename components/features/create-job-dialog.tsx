@@ -54,6 +54,10 @@ export function CreateJobDialog({ open, onOpenChange }: CreateJobDialogProps) {
         description: "Job created successfully",
       })
       queryClient.invalidateQueries({ queryKey: ["jobs"] })
+      // Refresh notifications after job creation
+      if ((window as any).refreshNotifications) {
+        (window as any).refreshNotifications()
+      }
       reset()
       onOpenChange(false)
     },

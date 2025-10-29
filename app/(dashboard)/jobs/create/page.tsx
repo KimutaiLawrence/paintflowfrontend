@@ -206,6 +206,10 @@ export default function CreateJobPage() {
     mutationFn: (data: FormData) => jobsApi.createJob(data),
     onSuccess: () => {
       toast.success("Success", { description: "Job created successfully" })
+      // Refresh notifications after job creation
+      if ((window as any).refreshNotifications) {
+        (window as any).refreshNotifications()
+      }
       router.push("/jobs")
     },
     onError: (error: any) => {

@@ -3,7 +3,7 @@
 import React from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools"
-import { Toaster } from "@/components/ui/sonner"
+// import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 export default function AuthLayout({
@@ -27,7 +27,7 @@ export default function AuthLayout({
         <div className="min-h-screen">
           {children}
         </div>
-        <Toaster />
+        {/* <Toaster /> */}
       </TooltipProvider>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>

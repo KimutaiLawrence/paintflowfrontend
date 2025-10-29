@@ -3,6 +3,7 @@
 import * as React from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { companyDocumentsApi } from "@/lib/api"
+import { usePreferences } from "@/hooks/use-preferences"
 import { DataTableSkeleton } from "@/components/shared/data-table-skeleton"
 import { Button } from "@/components/ui/button"
 import { 
@@ -506,6 +507,7 @@ export default function CompanyDocumentsPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const { canManageJobs } = useAuth()
+  const { preferences, updatePreference } = usePreferences()
 
   const { data: documents = [], isLoading } = useQuery<CompanyDocument[]>({
     queryKey: ["company-documents"],
@@ -585,6 +587,31 @@ export default function CompanyDocumentsPage() {
     }, {} as Record<string, CompanyDocument[]>)
   }, [documents])
 
+  // Sort categories to prioritize required safety documents
+  const sortedCategories = React.useMemo(() => {
+    const userOrder = preferences.company_documents_order || ['PTW', 'TBM', 'WAH', 'VSS']
+    const priorityCategories: string[] = []
+    const otherCategories: string[] = []
+    
+    Object.keys(documentsByCategory).forEach(category => {
+      if (userOrder.includes(category)) {
+        priorityCategories.push(category)
+      } else {
+        otherCategories.push(category)
+      }
+    })
+    
+    // Sort priority categories by user-defined order
+    priorityCategories.sort((a, b) => {
+      return userOrder.indexOf(a) - userOrder.indexOf(b)
+    })
+    
+    // Sort other categories alphabetically
+    otherCategories.sort((a, b) => a.localeCompare(b))
+    
+    return [...priorityCategories, ...otherCategories]
+  }, [documentsByCategory, preferences.company_documents_order])
+
   const selectedDocuments = selectedCategory
     ? documentsByCategory[selectedCategory] || []
     : []
@@ -649,26 +676,39 @@ export default function CompanyDocumentsPage() {
               <DataTableSkeleton columnCount={1} rowCount={6} />
             ) : (
               <div className="space-y-2">
-                {Object.entries(documentsByCategory).map(([category, docs]) => (
-                  <FolderCard
-                    key={category}
-                    category={category}
-                    count={docs.length}
-                    isSelected={selectedCategory === category}
-                    onClick={() => {
-                      setSelectedCategory(category)
-                      setSelectedDocument(null)
-                    }}
-                    onEdit={() => {
-                      // TODO: Implement category edit functionality
-                      toast.success(`Edit functionality for ${category} will be implemented soon.`)
-                    }}
-                    onDelete={() => {
-                      // TODO: Implement category delete functionality
-                      toast.error(`Delete functionality for ${category} will be implemented soon.`)
-                    }}
-                  />
-                ))}
+                {sortedCategories.map((category) => {
+                  const docs = documentsByCategory[category] || []
+                  const isPriority = ['PTW', 'TBM', 'WAH', 'VSS'].includes(category)
+                  return (
+                    <div key={category} className="relative">
+                      <FolderCard
+                        category={category}
+                        count={docs.length}
+                        isSelected={selectedCategory === category}
+                        onClick={() => {
+                          setSelectedCategory(category)
+                          setSelectedDocument(null)
+                        }}
+                        onEdit={() => {
+                          // TODO: Implement category edit functionality
+                          toast.success(`Edit functionality for ${category} will be implemented soon.`)
+                        }}
+                        onDelete={() => {
+                          // TODO: Implement category delete functionality
+                          toast.error(`Delete functionality for ${category} will be implemented soon.`)
+                        }}
+                      />
+                      {isPriority && (
+                        <Badge 
+                          variant="secondary" 
+                          className="absolute -top-1 -right-1 text-xs px-1 py-0"
+                        >
+                          Required
+                        </Badge>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </ScrollArea>

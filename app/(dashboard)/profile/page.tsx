@@ -11,9 +11,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
-import { User, Mail, Phone, Calendar, Briefcase, Award, Clock, CheckCircle, Upload, Edit } from "lucide-react"
+import { User, Mail, Phone, Calendar, Briefcase, Award, Clock, CheckCircle, Upload, Edit, Settings, Activity } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
-import { authApi } from "@/lib/api"
+import { authApi, auditTrailApi, AuditTrailEntry } from "@/lib/api"
+import { PreferencesSettings } from "@/components/settings/preferences-settings"
+import { format } from "date-fns"
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +32,16 @@ export default function ProfilePage() {
   const { data: userStats } = useQuery({
     queryKey: ["user-stats"],
     queryFn: () => api.dashboard.getMetrics(),
+  })
+
+  // Get user's recent audit trail entries
+  const { data: userActivity } = useQuery({
+    queryKey: ["user-activity", user?.id],
+    queryFn: () => auditTrailApi.getAuditTrail({
+      user_id: user?.id,
+      per_page: 10
+    }),
+    enabled: !!user?.id,
   })
 
   // const updateProfileMutation = useMutation({
@@ -183,10 +195,11 @@ export default function ProfilePage() {
 
         <div className="lg:col-span-2">
           <Tabs defaultValue="info" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="info">Personal Info</TabsTrigger>
               <TabsTrigger value="activity">Activity</TabsTrigger>
               <TabsTrigger value="settings">Settings</TabsTrigger>
+              <TabsTrigger value="preferences">Preferences</TabsTrigger>
             </TabsList>
 
             <TabsContent value="info">
@@ -275,33 +288,50 @@ export default function ProfilePage() {
             <TabsContent value="activity">
               <Card>
                 <CardHeader>
-                  <CardTitle>Recent Activity</CardTitle>
-                  <CardDescription>Your recent actions and updates</CardDescription>
+                  <CardTitle className="flex items-center gap-2">
+                    <Activity className="h-5 w-5" />
+                    Recent Activity
+                  </CardTitle>
+                  <CardDescription>Your recent actions and system activities</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-4 p-3 bg-muted/50 rounded-lg">
-                      <CheckCircle className="h-5 w-5 text-green-600" />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">Completed Job #1234</p>
-                        <p className="text-xs text-muted-foreground">2 hours ago</p>
-                      </div>
+                  {userActivity?.audit_entries?.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No recent activity found
                     </div>
-                    <div className="flex items-center space-x-4 p-3 bg-muted/50 rounded-lg">
-                      <Upload className="h-5 w-5 text-blue-600" />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">Uploaded 5 photos to Job #1233</p>
-                        <p className="text-xs text-muted-foreground">5 hours ago</p>
-                      </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {userActivity?.audit_entries?.map((entry: AuditTrailEntry) => {
+                        const getActivityIcon = (action: string) => {
+                          if (action.includes('CREATE')) return <CheckCircle className="h-5 w-5 text-green-600" />
+                          if (action.includes('UPDATE')) return <Edit className="h-5 w-5 text-blue-600" />
+                          if (action.includes('DELETE')) return <Settings className="h-5 w-5 text-red-600" />
+                          if (action.includes('LOGIN')) return <User className="h-5 w-5 text-purple-600" />
+                          return <Activity className="h-5 w-5 text-gray-600" />
+                        }
+
+                        return (
+                          <div key={entry.id} className="flex items-center space-x-4 p-3 bg-muted/50 rounded-lg">
+                            {getActivityIcon(entry.action)}
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{entry.description}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge variant="outline" className="text-xs">
+                                  {entry.action}
+                                </Badge>
+                                <Badge variant="secondary" className="text-xs">
+                                  {entry.resource_type}
+                                </Badge>
+                                <p className="text-xs text-muted-foreground">
+                                  {format(new Date(entry.created_at), 'MMM dd, HH:mm')}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
-                    <div className="flex items-center space-x-4 p-3 bg-muted/50 rounded-lg">
-                      <User className="h-5 w-5 text-purple-600" />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">Updated profile information</p>
-                        <p className="text-xs text-muted-foreground">1 day ago</p>
-                      </div>
-                    </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -352,6 +382,10 @@ export default function ProfilePage() {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="preferences">
+              <PreferencesSettings />
             </TabsContent>
           </Tabs>
         </div>

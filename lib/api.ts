@@ -1,7 +1,7 @@
 import axios from "axios"
 import { useAuthStore } from "@/store/auth-store"
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000/api"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -393,4 +393,188 @@ export const completionReportsApi = {
   updateCompletionReport: (reportId: string, data: any) => 
     api.put(`/reports/completion-reports/${reportId}`, data).then(res => res.data),
   deleteCompletionReport: (reportId: string) => api.delete(`/reports/completion-reports/${reportId}`).then(res => res.data),
+}
+
+// User Preferences API
+export interface UserPreferences {
+  theme: 'light' | 'dark' | 'system'
+  accent_color: 'blue' | 'green' | 'purple' | 'red' | 'orange'
+  sidebar_collapsed: boolean
+  compact_mode: boolean
+  dense_tables: boolean
+  company_documents_order: string[]
+  safety_documents_order: string[]
+  dashboard_widgets: {
+    recent_jobs: boolean
+    pending_tasks: boolean
+    safety_alerts: boolean
+    progress_chart: boolean
+    quick_stats: boolean
+  }
+  notifications: {
+    email_enabled: boolean
+    push_enabled: boolean
+    job_updates: boolean
+    safety_alerts: boolean
+    system_updates: boolean
+  }
+  table_page_size: number
+  table_sort_preferences: Record<string, any>
+  auto_save_forms: boolean
+  form_validation_mode: 'real_time' | 'on_submit'
+  high_contrast: boolean
+  large_text: boolean
+  reduced_motion: boolean
+  language: string
+  timezone: string
+  date_format: string
+  time_format: '12h' | '24h'
+}
+
+export const userPreferencesApi = {
+  getPreferences: () => api.get<UserPreferences>("/users/preferences").then(res => res.data),
+  updatePreferences: (preferences: Partial<UserPreferences>) => 
+    api.put<UserPreferences>("/users/preferences", preferences).then(res => res.data),
+  getPreference: (key: string) => 
+    api.get<{ [key: string]: any }>(`/users/preferences/${key}`).then(res => res.data),
+  updatePreference: (key: string, value: any) => 
+    api.put<{ [key: string]: any }>(`/users/preferences/${key}`, value).then(res => res.data),
+}
+
+// Audit Trail Types
+export interface AuditTrailEntry {
+  id: string
+  user_id?: string
+  user_name: string
+  user_email?: string
+  action: string
+  resource_type: string
+  resource_id?: string
+  description: string
+  method: string
+  endpoint: string
+  ip_address?: string
+  user_agent?: string
+  response_status?: number
+  created_at: string
+}
+
+export interface AuditTrailResponse {
+  audit_entries: AuditTrailEntry[]
+  pagination: {
+    page: number
+    per_page: number
+    total: number
+    pages: number
+    has_next: boolean
+    has_prev: boolean
+  }
+}
+
+export interface AuditTrailStats {
+  total_entries: number
+  recent_entries: number
+  active_users: Array<{ name: string; email: string; count: number }>
+  common_actions: Array<{ action: string; count: number }>
+  daily_activity: Array<{ date: string; count: number }>
+}
+
+// Role and Permission Types
+export interface Role {
+  id: string
+  name: string
+  display_name: string
+  description?: string
+  is_system_role: boolean
+  is_active: boolean
+  created_at: string
+  permissions: RolePermission[]
+}
+
+export interface RolePermission {
+  permission_id: string
+  permission_name: string
+  resource_type: string
+  action: string
+  granted: boolean
+}
+
+export interface Permission {
+  id: string
+  name: string
+  display_name: string
+  description?: string
+  resource_type: string
+  action: string
+  is_system_permission: boolean
+  created_at: string
+}
+
+export interface UserRoleAssignment {
+  id: string
+  user_id: string
+  role_id: string
+  assigned_by: string
+  assigned_at: string
+  is_active: boolean
+}
+
+// Notification Types
+export interface Notification {
+  id: string
+  title: string
+  message: string
+  is_read: boolean
+  created_at: string
+  job_id?: string
+}
+
+export const auditTrailApi = {
+  getAuditTrail: (params?: {
+    page?: number;
+    per_page?: number;
+    user_id?: string;
+    action?: string;
+    resource_type?: string;
+    start_date?: string;
+    end_date?: string;
+  }) => api.get<AuditTrailResponse>('/audit/', { params }).then(res => res.data),
+  getAuditStats: () => api.get<AuditTrailStats>('/audit/stats').then(res => res.data),
+}
+
+export const notificationsApi = {
+  getNotifications: () => api.get<Notification[]>('/notifications/').then(res => res.data),
+  markAsRead: (notificationId: string) => 
+    api.put(`/notifications/${notificationId}/read`).then(res => res.data),
+  deleteNotification: (notificationId: string) => 
+    api.delete(`/notifications/${notificationId}`).then(res => res.data),
+}
+
+// Roles and Permissions API
+export const rolesApi = {
+  getRoles: () => api.get<Role[]>('/roles/').then(res => res.data),
+  getRole: (id: string) => api.get<Role>(`/roles/${id}`).then(res => res.data),
+  createRole: (data: Partial<Role>) => api.post<Role>('/roles/', data).then(res => res.data),
+  updateRole: (id: string, data: Partial<Role>) => api.put<Role>(`/roles/${id}`, data).then(res => res.data),
+  deleteRole: (id: string) => api.delete(`/roles/${id}`).then(res => res.data),
+  updateRolePermissions: (id: string, permissions: RolePermission[]) => 
+    api.put(`/roles/${id}/permissions`, { permissions }).then(res => res.data),
+  getRoleAssignments: () => api.get<UserRoleAssignment[]>('/roles/assignments').then(res => res.data),
+  assignRole: (data: Partial<UserRoleAssignment>) => 
+    api.post('/roles/assignments', data).then(res => res.data),
+}
+
+export const permissionsApi = {
+  getPermissions: () => api.get<Permission[]>('/permissions/').then(res => res.data),
+  getPermission: (id: string) => api.get<Permission>(`/permissions/${id}`).then(res => res.data),
+}
+
+// User Role Assignment API
+export const userRoleAssignmentApi = {
+  getUserRoleAssignments: (userId: string) => 
+    api.get<UserRoleAssignment[]>(`/users/${userId}/role-assignments`).then(res => res.data),
+  getUserPermissions: (userId: string) => 
+    api.get<Permission[]>(`/users/${userId}/permissions`).then(res => res.data),
+  getUserRoles: (userId: string) => 
+    api.get<Role[]>(`/users/${userId}/roles`).then(res => res.data),
 }

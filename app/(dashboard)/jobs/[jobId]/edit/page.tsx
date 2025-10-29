@@ -126,6 +126,10 @@ export default function EditJobPage() {
       })
       queryClient.invalidateQueries({ queryKey: ["job", jobId] })
       queryClient.invalidateQueries({ queryKey: ["jobs"] })
+      // Refresh notifications after job update
+      if ((window as any).refreshNotifications) {
+        (window as any).refreshNotifications()
+      }
       router.push(`/jobs/${jobId}`)
     },
     onError: (error: any) => {
