@@ -12,6 +12,9 @@ import {
   BarChart3,
   Shield,
   Layout,
+  MapPin,
+  UserCheck,
+  ClipboardList,
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -56,8 +59,33 @@ const getNavData = (user: any) => {
               title: "Create Job",
               url: "/jobs/create",
             },
+            // Job management items for managers/superadmins
+            ...(user?.role === "superadmin" || user?.role === "manager" ? [
+              {
+                title: "Job Titles",
+                url: "/job-titles",
+              },
+              {
+                title: "Job Areas",
+                url: "/job-areas",
+              },
+              {
+                title: "Locations",
+                url: "/locations",
+              },
+              {
+                title: "Town Councils",
+                url: "/town-councils",
+              },
+            ] : []),
           ],
     },
+    // Workers menu item for managers/superadmins
+    ...(user?.role === "superadmin" || user?.role === "manager" ? [{
+      title: "Workers",
+      url: "/workers",
+      icon: UserCheck,
+    }] : []),
     {
       title: "Reports",
       url: "/reports",
@@ -109,26 +137,6 @@ const getNavData = (user: any) => {
         {
           title: "Clients",
           url: "/clients",
-        },
-        {
-          title: "Workers",
-          url: "/workers",
-        },
-        {
-          title: "Locations",
-          url: "/locations",
-        },
-        {
-          title: "Town Councils",
-          url: "/town-councils",
-        },
-        {
-          title: "Job Titles",
-          url: "/job-titles",
-        },
-        {
-          title: "Job Areas",
-          url: "/job-areas",
         },
         {
           title: "Audit Trail",
