@@ -289,6 +289,32 @@ export const formTemplatesApi = {
   deleteFormTemplate: (templateId: string) => api.delete(`/form-templates/${templateId}`).then(res => res.data),
 }
 
+// Forms API (Markdown-capable)
+export const formsApi = {
+  // Templates CRUD under /forms/templates
+  getTemplates: () => api.get("/forms/templates").then(res => res.data),
+  getTemplate: (templateId: string) => api.get(`/forms/templates/${templateId}`).then(res => res.data),
+  createTemplate: (templateData: { name: string; description?: string; form_schema?: any; content_markdown?: string }) =>
+    api.post("/forms/templates", templateData).then(res => res.data),
+  updateTemplate: (templateId: string, templateData: Partial<{ name: string; description: string; form_schema: any; content_markdown: string; is_active: boolean }>) =>
+    api.put(`/forms/templates/${templateId}`, templateData).then(res => res.data),
+  deleteTemplate: (templateId: string) => api.delete(`/forms/templates/${templateId}`).then(res => res.data),
+
+  // Submissions
+  listSubmissions: () => api.get("/forms/submissions").then(res => res.data),
+  submitForm: (payload: {
+    template_id: string;
+    job_area_id: string;
+    form_data?: any;
+    rendered_markdown?: string;
+    attachments?: any;
+  }) => api.post("/forms/submit", payload).then(res => res.data),
+  getSubmission: (id: string) => api.get(`/forms/submissions/${id}`).then(res => res.data),
+  updateSubmission: (id: string, data: { submission_data?: any; rendered_markdown?: string; attachments?: any }) =>
+    api.put(`/forms/submissions/${id}`, data).then(res => res.data),
+  deleteSubmission: (id: string) => api.delete(`/forms/submissions/${id}`).then(res => res.data),
+}
+
 // Job Tabs API
 export interface SitePhoto {
   id: string

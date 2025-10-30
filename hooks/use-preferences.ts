@@ -128,26 +128,43 @@ export function usePreferences() {
     }
   }, [])
 
-  // Apply theme changes to document when preferences change
+  // Sync backend theme with localStorage without causing UI flicker
   useEffect(() => {
-    if (preferences?.theme) {
-      const root = document.documentElement
-      
-      if (preferences.theme === 'dark') {
+    if (!preferences) return
+
+    const normalize = (t: string | null | undefined) => (t === 'dark' ? 'dark' : 'light')
+    const root = document.documentElement
+
+    const local = localStorage.getItem('theme')
+    const localNormalized = normalize(local || 'light')
+    const serverNormalized = normalize(preferences.theme)
+
+    if (!local) {
+      // No local preference yet: adopt server (normalized), defaulting system->light
+      localStorage.setItem('theme', serverNormalized)
+      setLocalTheme(serverNormalized)
+      if (serverNormalized === 'dark') {
         root.classList.add('dark')
-      } else if (preferences.theme === 'light') {
+      } else {
         root.classList.remove('dark')
-       } else if (preferences.theme === 'system') {
-         // System theme should always be light
-         root.classList.remove('dark')
-       }
-      
-      // Update localStorage to match server preferences
-      localStorage.setItem('theme', preferences.theme)
-      setLocalTheme(preferences.theme)
-      
-      // Dispatch custom event to notify theme toggle component
-      window.dispatchEvent(new CustomEvent('themeChanged', { detail: preferences.theme }))
+      }
+      window.dispatchEvent(new CustomEvent('themeChanged', { detail: serverNormalized }))
+      return
+    }
+
+    if (localNormalized !== serverNormalized) {
+      // Keep UI as-is (local is source of truth), sync backend quietly
+      if (preferences.theme !== localNormalized) {
+        updatePreference('theme', localNormalized)
+      }
+      return
+    }
+
+    // They match: ensure DOM reflects the value
+    if (localNormalized === 'dark') {
+      root.classList.add('dark')
+    } else {
+      root.classList.remove('dark')
     }
   }, [preferences?.theme])
 
@@ -185,7 +202,7 @@ export function usePreferences() {
   }, [preferences?.high_contrast, preferences?.large_text, preferences?.reduced_motion])
 
   return {
-    preferences: preferences || {
+    preferences: preferences ? { ...preferences, theme: (localTheme as 'light' | 'dark' | 'system') } : {
       theme: localTheme as 'light' | 'dark' | 'system',
       accent_color: 'blue',
       sidebar_collapsed: false,

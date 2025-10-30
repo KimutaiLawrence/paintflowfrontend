@@ -113,11 +113,17 @@ export default function VSSChecklistForm({ onComplete, initialData }: VSSCheckli
 
   const submitForm = useMutation({
     mutationFn: async (data: VSSChecklistFormData & { status: string }) => {
-      const response = await api.post("/forms/", {
-        form_type: "vss_checklist",
-        form_data: data,
-        status: data.status,
-      })
+      const templateId = (initialData as any)?.template_id || ""
+      const jobAreaId = (initialData as any)?.job_area_id || ""
+      if (!templateId || !jobAreaId) {
+        throw new Error("Missing template_id or job_area_id")
+      }
+      const payload = {
+        template_id: templateId,
+        job_area_id: jobAreaId,
+        form_data: { ...data },
+      }
+      const response = await api.post("/forms/submit", payload)
       return response.data
     },
     onSuccess: () => {

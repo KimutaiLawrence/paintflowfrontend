@@ -104,6 +104,14 @@ const getNavData = (user: any) => {
           title: "Categories",
           url: "/company-documents/categories",
         },
+        {
+          title: "Form Templates",
+          url: "/company-documents/form-templates",
+        },
+        {
+          title: "Form Entries",
+          url: "/company-documents/editable-form-templates",
+        },
       ],
     },
     {

@@ -1,7 +1,7 @@
 "use client"
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { formTemplatesApi } from "@/lib/api"
+import { formsApi } from "@/lib/api"
 import { useState } from "react"
 // ... import other necessary components
 
@@ -12,11 +12,11 @@ export default function FormTemplatesPage() {
 
   const { data: templates, isLoading } = useQuery({
     queryKey: ["formTemplates"],
-    queryFn: formTemplatesApi.getTemplates,
+    queryFn: formsApi.getTemplates,
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (templateId: string) => formTemplatesApi.deleteTemplate(templateId),
+    mutationFn: (templateId: string) => formsApi.deleteTemplate(templateId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["formTemplates"] }),
   })
 
