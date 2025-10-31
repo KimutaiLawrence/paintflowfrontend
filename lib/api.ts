@@ -208,6 +208,16 @@ export const companyDocumentsApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
+  updateDocument: (docId: string, data: { name?: string; description?: string; category?: string }) => {
+    const formData = new FormData()
+    if (data.name) formData.append("name", data.name)
+    if (data.description) formData.append("description", data.description)
+    if (data.category) formData.append("category", data.category)
+    
+    return api.put(`/company-documents/${docId}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
   deleteDocument: (docId: string) => api.delete(`/company-documents/${docId}`),
 }
 

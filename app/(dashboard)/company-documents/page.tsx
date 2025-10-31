@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { companyDocumentsApi } from "@/lib/api"
+import { companyDocumentsApi, documentCategoriesApi } from "@/lib/api"
 import { usePreferences } from "@/hooks/use-preferences"
 import { DataTableSkeleton } from "@/components/shared/data-table-skeleton"
 import { Button } from "@/components/ui/button"
@@ -37,6 +37,12 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
+import { ButtonLoader } from "@/components/ui/custom-loader"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -504,15 +510,43 @@ export default function CompanyDocumentsPage() {
   const [selectedDocument, setSelectedDocument] = React.useState<CompanyDocument | null>(null)
   const [isConfirmOpen, setConfirmOpen] = React.useState(false)
   const [selectedDocId, setSelectedDocId] = React.useState<string | null>(null)
+  const [isCategoryDeleteOpen, setIsCategoryDeleteOpen] = React.useState(false)
+  const [categoryToDelete, setCategoryToDelete] = React.useState<string | null>(null)
+  const [isCategoryEditOpen, setIsCategoryEditOpen] = React.useState(false)
+  const [categoryToEdit, setCategoryToEdit] = React.useState<string | null>(null)
+  const [isDocumentEditOpen, setIsDocumentEditOpen] = React.useState(false)
+  const [documentToEdit, setDocumentToEdit] = React.useState<CompanyDocument | null>(null)
+  const [editFormData, setEditFormData] = React.useState({ name: '', description: '', category: '' })
+  const [categoryEditFormData, setCategoryEditFormData] = React.useState({ code: '', name: '', description: '', color: '#3B82F6' })
   const queryClient = useQueryClient()
   const { toast } = useToast()
-  const { canManageJobs } = useAuth()
+  const { canManageJobs, canDelete } = useAuth()
   const { preferences, updatePreference } = usePreferences()
 
   const { data: documents = [], isLoading } = useQuery<CompanyDocument[]>({
     queryKey: ["company-documents"],
     queryFn: () => companyDocumentsApi.getDocuments(),
   })
+
+  const { data: categories = [], isLoading: categoriesLoading } = useQuery({
+    queryKey: ["document-categories"],
+    queryFn: documentCategoriesApi.getCategories,
+  })
+
+  // Update category form data when categoryToEdit changes
+  React.useEffect(() => {
+    if (categoryToEdit && categories.length > 0) {
+      const category = categories.find((cat: any) => cat.code === categoryToEdit)
+      if (category) {
+        setCategoryEditFormData({
+          code: category.code,
+          name: category.name,
+          description: category.description || '',
+          color: category.color || '#3B82F6'
+        })
+      }
+    }
+  }, [categoryToEdit, categories])
 
   const deleteMutation = useMutation({
     mutationFn: (docId: string) => companyDocumentsApi.deleteDocument(docId),
@@ -526,9 +560,74 @@ export default function CompanyDocumentsPage() {
         setSelectedDocument(null)
       }
     },
-    onError: () => {
-      toast.error("Failed to delete document.")
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.message || error.message || "Failed to delete document."
+      toast.error(`Failed to delete document: ${errorMessage}. Please try again.`)
       setConfirmOpen(false)
+      // Don't clear selectedDocId so user can retry
+    },
+  })
+
+  const updateDocumentMutation = useMutation({
+    mutationFn: ({ docId, data }: { docId: string; data: { name?: string; description?: string; category?: string } }) =>
+      companyDocumentsApi.updateDocument(docId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["company-documents"] })
+      toast.success("Document updated successfully.")
+      setIsDocumentEditOpen(false)
+      setDocumentToEdit(null)
+    },
+    onError: (error: any) => {
+      toast.error("Failed to update document: " + (error.response?.data?.message || "Please try again"))
+    },
+  })
+
+  const deleteCategoryMutation = useMutation({
+    mutationFn: async (categoryCode: string) => {
+      // First, delete all documents in this category
+      const docsInCategory = documents.filter(doc => doc.category === categoryCode)
+      await Promise.all(docsInCategory.map(doc => companyDocumentsApi.deleteDocument(doc.id)))
+      
+      // Then delete the category by finding its ID
+      const category = categories.find((cat: any) => cat.code === categoryCode)
+      if (category) {
+        return documentCategoriesApi.deleteCategory(category.id)
+      }
+      throw new Error("Category not found")
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["company-documents"] })
+      queryClient.invalidateQueries({ queryKey: ["document-categories"] })
+      toast.success("Category and all its documents deleted successfully.")
+      setIsCategoryDeleteOpen(false)
+      setCategoryToDelete(null)
+      if (selectedCategory === categoryToDelete) {
+        setSelectedCategory(null)
+        setSelectedDocument(null)
+      }
+    },
+    onError: (error: any) => {
+      toast.error("Failed to delete category: " + (error.response?.data?.message || "Please try again"))
+    },
+  })
+
+  const updateCategoryMutation = useMutation({
+    mutationFn: ({ categoryCode, data }: { categoryCode: string; data: any }) => {
+      const category = categories.find((cat: any) => cat.code === categoryCode)
+      if (category) {
+        return documentCategoriesApi.updateCategory(category.id, data)
+      }
+      throw new Error("Category not found")
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["document-categories"] })
+      queryClient.invalidateQueries({ queryKey: ["company-documents"] })
+      toast.success("Category updated successfully.")
+      setIsCategoryEditOpen(false)
+      setCategoryToEdit(null)
+    },
+    onError: (error: any) => {
+      toast.error("Failed to update category: " + (error.response?.data?.message || "Please try again"))
     },
   })
 
@@ -648,10 +747,177 @@ export default function CompanyDocumentsPage() {
         isOpen={isConfirmOpen}
         onClose={() => setConfirmOpen(false)}
         onConfirm={handleDelete}
-        title="Are you sure?"
-        description="This action cannot be undone. This will permanently delete the document."
+        title="Delete Document"
+        description="Are you sure? This action cannot be undone. This will permanently delete the document."
         isLoading={deleteMutation.isPending}
       />
+
+      <ConfirmDialog
+        isOpen={isCategoryDeleteOpen}
+        onClose={() => setIsCategoryDeleteOpen(false)}
+        onConfirm={() => {
+          if (categoryToDelete) {
+            deleteCategoryMutation.mutate(categoryToDelete)
+          }
+        }}
+        title="Delete Category"
+        description={
+          categoryToDelete 
+            ? `Are you sure? This will permanently delete the category "${categoryToDelete}" and ALL ${documentsByCategory[categoryToDelete]?.length || 0} document(s) inside it. This action cannot be undone.`
+            : "Are you sure?"
+        }
+        isLoading={deleteCategoryMutation.isPending}
+      />
+
+      {/* Category Edit Dialog */}
+      <Dialog open={isCategoryEditOpen} onOpenChange={setIsCategoryEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Category</DialogTitle>
+          </DialogHeader>
+          {categoryToEdit && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="code">Code *</Label>
+                  <Input
+                    id="code"
+                    value={categoryEditFormData.code}
+                    onChange={(e) => setCategoryEditFormData({ ...categoryEditFormData, code: e.target.value.toUpperCase() })}
+                      maxLength={10}
+                      required
+                      disabled={updateCategoryMutation.isPending}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="color">Color</Label>
+                    <div className="flex items-center space-x-2">
+                      <Input
+                        id="color"
+                        type="color"
+                      value={categoryEditFormData.color}
+                      onChange={(e) => setCategoryEditFormData({ ...categoryEditFormData, color: e.target.value })}
+                        className="w-12 h-10 p-1"
+                        disabled={updateCategoryMutation.isPending}
+                      />
+                      <Input
+                      value={categoryEditFormData.color}
+                      onChange={(e) => setCategoryEditFormData({ ...categoryEditFormData, color: e.target.value })}
+                        placeholder="#3B82F6"
+                        className="flex-1"
+                        disabled={updateCategoryMutation.isPending}
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <Label htmlFor="name">Name *</Label>
+                  <Input
+                    id="name"
+                      value={categoryEditFormData.name}
+                      onChange={(e) => setCategoryEditFormData({ ...categoryEditFormData, name: e.target.value })}
+                    required
+                    disabled={updateCategoryMutation.isPending}
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                      value={categoryEditFormData.description}
+                      onChange={(e) => setCategoryEditFormData({ ...categoryEditFormData, description: e.target.value })}
+                    rows={3}
+                    disabled={updateCategoryMutation.isPending}
+                  />
+                </div>
+                
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsCategoryEditOpen(false)} disabled={updateCategoryMutation.isPending}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={() => updateCategoryMutation.mutate({ categoryCode: categoryToEdit, data: categoryEditFormData })}
+                    disabled={updateCategoryMutation.isPending}
+                  >
+                    {updateCategoryMutation.isPending && <ButtonLoader className="mr-2" />}
+                    Save Changes
+                  </Button>
+                </DialogFooter>
+              </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Document Edit Dialog */}
+      <Dialog open={isDocumentEditOpen} onOpenChange={setIsDocumentEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Document</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="doc-name">Name *</Label>
+              <Input
+                id="doc-name"
+                value={editFormData.name}
+                onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                required
+                disabled={updateDocumentMutation.isPending}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="doc-description">Description</Label>
+              <Textarea
+                id="doc-description"
+                value={editFormData.description}
+                onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                rows={3}
+                disabled={updateDocumentMutation.isPending}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="doc-category">Category *</Label>
+              <Select
+                value={editFormData.category}
+                onValueChange={(value) => setEditFormData({ ...editFormData, category: value })}
+                disabled={updateDocumentMutation.isPending}
+              >
+                <SelectTrigger id="doc-category">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((cat: any) => (
+                    <SelectItem key={cat.code} value={cat.code}>
+                      {cat.code} - {cat.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsDocumentEditOpen(false)} disabled={updateDocumentMutation.isPending}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => {
+                  if (documentToEdit) {
+                    updateDocumentMutation.mutate({ docId: documentToEdit.id, data: editFormData })
+                  }
+                }}
+                disabled={updateDocumentMutation.isPending || !editFormData.name || !editFormData.category}
+              >
+                {updateDocumentMutation.isPending && <ButtonLoader className="mr-2" />}
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="flex flex-col lg:flex-row h-[calc(100vh-4rem)]">
         {/* Sidebar - Desktop */}
@@ -689,14 +955,14 @@ export default function CompanyDocumentsPage() {
                           setSelectedCategory(category)
                           setSelectedDocument(null)
                         }}
-                        onEdit={() => {
-                          // TODO: Implement category edit functionality
-                          toast.success(`Edit functionality for ${category} will be implemented soon.`)
-                        }}
-                        onDelete={() => {
-                          // TODO: Implement category delete functionality
-                          toast.error(`Delete functionality for ${category} will be implemented soon.`)
-                        }}
+                        onEdit={canManageJobs() ? () => {
+                          setCategoryToEdit(category)
+                          setIsCategoryEditOpen(true)
+                        } : undefined}
+                        onDelete={canDelete() ? () => {
+                          setCategoryToDelete(category)
+                          setIsCategoryDeleteOpen(true)
+                        } : undefined}
                       />
                       {isPriority && (
                         <Badge 
@@ -785,8 +1051,21 @@ export default function CompanyDocumentsPage() {
                                 }}
                               >
                                 <Eye className="h-4 w-4 mr-2" />
-                                View/Edit
+                                View
                               </DropdownMenuItem>
+                              {canManageJobs() && (
+                                <DropdownMenuItem 
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setDocumentToEdit(doc)
+                                    setEditFormData({ name: doc.name, description: doc.description || '', category: doc.category })
+                                    setIsDocumentEditOpen(true)
+                                  }}
+                                >
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Edit
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem 
                                 onClick={(e) => {
                                   e.stopPropagation()
@@ -797,17 +1076,22 @@ export default function CompanyDocumentsPage() {
                                 Download
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem 
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setSelectedDocId(doc.id)
-                                  setConfirmOpen(true)
-                                }}
-                                className="text-red-600"
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
+                              {canDelete() && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setSelectedDocId(doc.id)
+                                      setConfirmOpen(true)
+                                    }}
+                                    className="text-red-600"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </>
+                              )}
                             </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
